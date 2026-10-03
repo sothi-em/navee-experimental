@@ -14,8 +14,8 @@ export default function App() {
   const [sessionId, setSessionId] = useState<number | null>(null);
 
   // Bootstrap the chat surface: a default user, the user's backend sessions,
-  // and an active session (last-used persisted in localStorage; a new session
-  // is created when the stored one no longer exists).
+  // and an active session (last-used persisted in localStorage; falls back to
+  // the newest existing session — never auto-created, so no phantom threads).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -24,15 +24,11 @@ export default function App() {
         users = [await api.createUser("local")];
       }
       const uid = users[0].id;
-      let list = await api.listSessions(uid);
+      const list = await api.listSessions(uid);
       const stored = Number(localStorage.getItem(SESSION_KEY));
-      let active = list.some((s) => s.id === stored) ? stored : null;
-      if (active === null) {
-        const created = await api.createSession(uid);
-        list = [created, ...list];
-        active = created.id;
-      }
-      localStorage.setItem(SESSION_KEY, String(active));
+      const active = list.some((s) => s.id === stored) ? stored : (list[0]?.id ?? null);
+      if (active !== null) localStorage.setItem(SESSION_KEY, String(active));
+      else localStorage.removeItem(SESSION_KEY);
       if (!cancelled) {
         setUserId(uid);
         setSessions(list);
@@ -92,13 +88,8 @@ export default function App() {
       const next = sessions.filter((t) => t.id !== id);
       setSessions(next);
       if (sessionId === id) {
-        if (next.length > 0) {
-          selectSession(next[0].id);
-        } else if (userId !== null) {
-          const s = await api.createSession(userId);
-          setSessions([s]);
-          selectSession(s.id);
-        }
+        if (next.length > 0) selectSession(next[0].id);
+        else setSessionId(null);
       }
     } catch (e) {
       console.error("deleteSession failed", e);
@@ -122,6 +113,16 @@ export default function App() {
             <Panel defaultSize={35} minSize={20} className="h-full">
               {sessionId !== null ? (
                 <ChatPanel sessionId={sessionId} onUserMessageSent={handleUserMessageSent} />
+              ) : userId !== null ? (
+                <div className="h-full grid place-items-center">
+                  <button
+                    type="button"
+                    onClick={createConversation}
+                    className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    Start a conversation
+                  </button>
+                </div>
               ) : (
                 <div className="h-full grid place-items-center text-sm text-zinc-400">
                   Loading…
