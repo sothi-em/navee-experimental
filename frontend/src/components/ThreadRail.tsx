@@ -1,43 +1,58 @@
 import { useState } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import type { Session } from "../api/client";
 import { cn } from "../utils/cn";
 
-interface Thread {
-  title: string;
-  timestamp: string;
+interface ThreadRailProps {
+  sessions: Session[];
+  activeId: number | null;
+  onSelect: (id: number) => void;
+  onCreate: () => void;
+  onRename: (id: number, title: string) => void;
+  onDelete: (id: number) => void;
 }
-
-const INITIAL_THREADS: Thread[] = [
-  { title: "Memory architecture", timestamp: "2h ago" },
-  { title: "Vector recall tuning", timestamp: "yesterday" },
-  { title: "Onboarding", timestamp: "3d ago" },
-];
 
 const ROW_BTN =
   "p-1 rounded hover:bg-zinc-200 transition-colors text-zinc-400 hover:text-zinc-600";
 
-export function ThreadRail() {
-  const [threads, setThreads] = useState(INITIAL_THREADS);
+function formatWhen(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  const opts: Intl.DateTimeFormatOptions =
+    d.getFullYear() === now.getFullYear()
+      ? { month: "short", day: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" };
+  return d.toLocaleDateString([], opts);
+}
+
+export function ThreadRail({
+  sessions,
+  activeId,
+  onSelect,
+  onCreate,
+  onRename,
+  onDelete,
+}: ThreadRailProps) {
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  const startEdit = (i: number) => {
-    setEditing(i);
-    setDraft(threads[i].title);
+  const startEdit = (s: Session) => {
+    setEditing(s.id);
+    setDraft(s.title ?? "");
   };
 
   const commitEdit = () => {
     if (editing === null) return;
     const title = draft.trim();
-    setThreads((ts) =>
-      ts.map((t, i) => (i === editing ? { ...t, title: title || t.title } : t))
-    );
+    if (title) onRename(editing, title);
     setEditing(null);
   };
-
-  const removeThread = (i: number) =>
-    setThreads((ts) => ts.filter((_, j) => j !== i));
 
   return (
     <aside className="w-[280px] shrink-0 flex flex-col border-r border-zinc-200 bg-white">
@@ -45,6 +60,7 @@ export function ThreadRail() {
         <h2 className="text-sm font-semibold text-zinc-800">Conversations</h2>
         <button
           type="button"
+          onClick={onCreate}
           className="p-1.5 rounded-md hover:bg-zinc-100 transition-colors text-zinc-500"
           aria-label="New conversation"
         >
@@ -53,23 +69,32 @@ export function ThreadRail() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {threads.map((thread, i) => (
+        {sessions.length === 0 && (
+          <div className="px-3 py-2 text-xs text-zinc-400">No conversations yet.</div>
+        )}
+        {sessions.map((s) => (
           <div
-            key={i}
+            key={s.id}
+            onClick={() => onSelect(s.id)}
             className={cn(
-              "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
-              i === 0
+              "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 cursor-pointer",
+              s.id === activeId
                 ? "bg-zinc-100 text-zinc-800"
                 : "text-zinc-600 hover:bg-zinc-50"
             )}
           >
             <div className="flex-1 min-w-0">
-              {editing === i ? (
+              {confirmDelete === s.id ? (
+                <div className="text-xs font-medium text-red-600 truncate">
+                  Delete this conversation?
+                </div>
+              ) : editing === s.id ? (
                 <input
                   autoFocus
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={commitEdit}
+                  onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") commitEdit();
                     if (e.key === "Escape") setEditing(null);
@@ -77,17 +102,48 @@ export function ThreadRail() {
                   className="w-full px-1 rounded border border-indigo-500 bg-white text-sm text-zinc-800 focus:outline-none"
                 />
               ) : (
-                <div className="truncate">{thread.title}</div>
+                <>
+                  <div className="truncate">{s.title || "New conversation"}</div>
+                  <div className="text-[10px] text-zinc-400">{formatWhen(s.created_at)}</div>
+                </>
               )}
-              <div className="text-[10px] text-zinc-400">{thread.timestamp}</div>
             </div>
 
             <div className="flex items-center gap-0.5 shrink-0">
-              {editing === i ? (
+              {confirmDelete === s.id ? (
                 <>
                   <button
                     type="button"
-                    onClick={commitEdit}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(null);
+                      onDelete(s.id);
+                    }}
+                    className={ROW_BTN}
+                    aria-label="Confirm delete"
+                  >
+                    <Check className="w-3.5 h-3.5 text-red-600" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(null);
+                    }}
+                    className={ROW_BTN}
+                    aria-label="Cancel delete"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : editing === s.id ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      commitEdit();
+                    }}
                     className={ROW_BTN}
                     aria-label="Save name"
                   >
@@ -95,7 +151,10 @@ export function ThreadRail() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditing(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditing(null);
+                    }}
                     className={ROW_BTN}
                     aria-label="Cancel rename"
                   >
@@ -106,7 +165,10 @@ export function ThreadRail() {
                 <>
                   <button
                     type="button"
-                    onClick={() => startEdit(i)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEdit(s);
+                    }}
                     className={ROW_BTN}
                     aria-label="Rename conversation"
                   >
@@ -114,7 +176,10 @@ export function ThreadRail() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setConfirmDelete(i)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(s.id);
+                    }}
                     className={ROW_BTN}
                     aria-label="Delete conversation"
                   >
@@ -126,39 +191,6 @@ export function ThreadRail() {
           </div>
         ))}
       </div>
-
-      {confirmDelete !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-72 rounded-lg border border-zinc-200 bg-white shadow-lg p-4">
-            <h3 className="text-sm font-semibold text-zinc-800">
-              Delete conversation?
-            </h3>
-            <p className="mt-1 text-xs text-zinc-500">
-              “{threads[confirmDelete].title}” will be removed. This cannot be
-              undone.
-            </p>
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="px-3 py-1.5 rounded-md text-xs font-medium border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  removeThread(confirmDelete);
-                  setConfirmDelete(null);
-                }}
-                className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

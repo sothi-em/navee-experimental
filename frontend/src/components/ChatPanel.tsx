@@ -32,7 +32,13 @@ function ToolCard({ tool }: { tool: ToolEvent }) {
   );
 }
 
-export function ChatPanel({ sessionId }: { sessionId: number }) {
+export function ChatPanel({
+  sessionId,
+  onUserMessageSent,
+}: {
+  sessionId: number;
+  onUserMessageSent?: () => void;
+}) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -82,6 +88,7 @@ export function ChatPanel({ sessionId }: { sessionId: number }) {
     ]);
     try {
       await streamMessage(sessionId, text, {
+        onStart: onUserMessageSent,
         onDelta: (c) => patchLastAssistant((m) => ({ ...m, content: m.content + c })),
         onTool: (t) =>
           patchLastAssistant((m) => ({ ...m, tools: [...(m.tools ?? []), t] })),

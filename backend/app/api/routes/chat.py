@@ -14,7 +14,14 @@ from sse_starlette.sse import EventSourceResponse
 from app.agent.agent_loop import run_agent_stream
 from app.agent.llm import llm
 from app.core.database import get_conn
-from app.core.models import ChatStreamIn, Message, MessageIn, Session, SessionCreate
+from app.core.models import (
+    ChatStreamIn,
+    Message,
+    MessageIn,
+    Session,
+    SessionCreate,
+    SessionRename,
+)
 from app.core.session_store import get_session_store
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -29,11 +36,44 @@ def create_session(payload: SessionCreate) -> dict:
     return get_session_store().create(payload.user_id, payload.title)
 
 
+@router.get("/sessions", response_model=list[Session])
+def list_sessions(user_id: int | None = None) -> list[dict]:
+    return get_session_store().list_sessions(user_id)
+
+
+@router.patch("/sessions/{session_id}", response_model=Session)
+def rename_session(session_id: int, payload: SessionRename) -> dict:
+    store = get_session_store()
+    if not store.exists(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    store.set_title(session_id, payload.title)
+    return {"id": session_id, **store.get(session_id)}
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: int) -> dict:
+    store = get_session_store()
+    if not store.exists(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    with get_conn() as conn:
+        # Soft delete: message rows are retained in the datastore, flagged
+        # is_deleted + timestamped; every read below filters them out.
+        conn.execute(
+            "UPDATE messages SET is_deleted = 1, deleted_at = datetime('now') "
+            "WHERE session_id = ?",
+            (session_id,),
+        )
+        conn.execute("DELETE FROM compactions WHERE session_id = ?", (session_id,))
+    store.delete(session_id)
+    return {"deleted": True}
+
+
 @router.get("/sessions/{session_id}/messages", response_model=list[Message])
 def list_messages(session_id: int) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session_id,)
+            "SELECT * FROM messages WHERE session_id = ? AND is_deleted = 0 ORDER BY id",
+            (session_id,)
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -48,13 +88,15 @@ def send_message(session_id: int, payload: MessageIn) -> list[dict]:
             (session_id, payload.role, payload.content),
         )
         if payload.role == "user":
+            get_session_store().set_initial_title(session_id, payload.content)
             reply = llm.complete(payload.content)
             conn.execute(
                 "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
                 (session_id, "assistant", reply),
             )
         rows = conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session_id,)
+            "SELECT * FROM messages WHERE session_id = ? AND is_deleted = 0 ORDER BY id",
+            (session_id,)
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -68,9 +110,10 @@ async def stream_message(session_id: int, payload: ChatStreamIn):
             "INSERT INTO messages (session_id, role, content) VALUES (?, 'user', ?)",
             (session_id, payload.content),
         )
+        get_session_store().set_initial_title(session_id, payload.content)
         rows = conn.execute(
-            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id",
-            (session_id,),
+            "SELECT role, content FROM messages WHERE session_id = ? AND is_deleted = 0 ORDER BY id",
+            (session_id,)
         ).fetchall()
     history = [{"role": r["role"], "content": r["content"]} for r in rows]
     return EventSourceResponse(_stream_turn(session_id, history))

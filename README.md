@@ -96,8 +96,8 @@ Backend settings come from environment variables or `backend/.env` (see
 | `LLM_API_KEY` | `not-set` | API key (often a dummy for local) |
 | `LLM_MODEL` | `local-model` | model name to request |
 | `TOKENIZER_NAME` | `gpt2` | HF tokenizer id or local path |
-| `DATABASE_PATH` | `data/navee.db` | SQLite file |
-| `TINYDB_PATH` | `data/navee.json` | facts + skills store |
+| `DATABASE_PATH` | `data/navee.db` | SQLite file (users, transcript, compactions) |
+| `TINYDB_PATH` | `data/navee.json` | sessions + facts + skills store |
 | `CHROMA_PATH` | `data/chroma` | flat-file vector index |
 | `CORS_ORIGINS` | `["http://localhost:5173"]` | allowed origins |
 
@@ -110,8 +110,8 @@ uv run pytest
 
 ## Python libraries
 
-- `sqlite3` (stdlib) — users, sessions, transcript
-- `tinydb` — learned facts + skills
+- `sqlite3` (stdlib) — users, transcript, compaction history
+- `tinydb` — sessions, learned facts + skills
 - `chromadb` — flat-file (persistent) semantic recall index
 - `transformers` — tokenizer for token counting and chunking
 - `openai` — client for the locally hosted LLM

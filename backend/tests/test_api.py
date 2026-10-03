@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
+from app.core.database import get_conn
 from server import app
 
 
@@ -45,6 +46,55 @@ def test_user_and_session_lifecycle(client: TestClient) -> None:
     r = client.get(f"/api/chat/sessions/{session_id}/messages")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_session_list_rename_delete(client: TestClient) -> None:
+    r = client.post("/api/users", json={"username": "carol"})
+    user_id = r.json()["id"]
+
+    # Two sessions list newest-first.
+    r = client.post("/api/chat/sessions", json={"user_id": user_id, "title": "one"})
+    first = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id, "title": "two"})
+    second = r.json()["id"]
+
+    r = client.get("/api/chat/sessions", params={"user_id": user_id})
+    assert r.status_code == 200
+    assert [s["id"] for s in r.json()] == [second, first]
+    assert r.json()[0]["title"] == "two"
+
+    # Other users' sessions are excluded by the filter.
+    r = client.post("/api/users", json={"username": "dave"})
+    other_user = r.json()["id"]
+    client.post("/api/chat/sessions", json={"user_id": other_user})
+    r = client.get("/api/chat/sessions", params={"user_id": user_id})
+    assert [s["id"] for s in r.json()] == [second, first]
+
+    # Rename.
+    r = client.patch(f"/api/chat/sessions/{first}", json={"title": "renamed"})
+    assert r.status_code == 200
+    assert r.json()["title"] == "renamed"
+    assert client.patch("/api/chat/sessions/99999", json={"title": "x"}).status_code == 404
+
+    # Delete removes the session; messages are soft-deleted (retained in the
+    # datastore, marked deleted_at) and hidden from every read.
+    r = client.post(
+        f"/api/chat/sessions/{second}/messages", json={"role": "user", "content": "hi"}
+    )
+    assert r.status_code == 200
+    r = client.delete(f"/api/chat/sessions/{second}")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": True}
+    r = client.get(f"/api/chat/sessions/{second}/messages")
+    assert r.json() == []
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT content, is_deleted, deleted_at FROM messages WHERE session_id = ?",
+            (second,),
+        ).fetchone()
+    assert row is not None and row["content"] == "hi"
+    assert row["is_deleted"] == 1 and row["deleted_at"]
+    assert client.delete(f"/api/chat/sessions/{second}").status_code == 404
 
 
 def test_stream_message_with_tool_round(client: TestClient, monkeypatch) -> None:

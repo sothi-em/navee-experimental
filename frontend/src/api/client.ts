@@ -37,6 +37,9 @@ export interface ToolEvent {
 }
 
 export interface StreamCallbacks {
+  /** Fired once the response is established — the user message is persisted
+   *  and the session title (first message) is set by then. */
+  onStart?: () => void;
   onDelta?: (content: string) => void;
   onTool?: (tool: ToolEvent) => void;
   onError?: (message: string) => void;
@@ -66,6 +69,7 @@ export async function streamMessage(
   if (!res.ok || !res.body) {
     throw new StreamError(res.status);
   }
+  cb.onStart?.();
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
@@ -146,6 +150,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ user_id: userId, title }),
     }),
+  listSessions: (userId: number) =>
+    request<Session[]>(`/api/chat/sessions?user_id=${userId}`),
+  renameSession: (id: number, title: string) =>
+    request<Session>(`/api/chat/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  deleteSession: (id: number) =>
+    request<{ deleted: boolean }>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
   listMessages: (sessionId: number) =>
     request<Message[]>(`/api/chat/sessions/${sessionId}/messages`),
   sendMessage: (sessionId: number, role: string, content: string) =>

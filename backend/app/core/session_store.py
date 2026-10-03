@@ -48,6 +48,36 @@ class SessionStore:
     def exists(self, session_id: int) -> bool:
         return self.table.get(doc_id=session_id) is not None
 
+    def list_sessions(self, user_id: int | None = None) -> list[dict]:
+        """All sessions, newest id first, optionally filtered by user."""
+        docs = self.table.all()
+        if user_id is not None:
+            docs = [d for d in docs if d.get("user_id") == user_id]
+        docs.sort(key=lambda d: d.doc_id, reverse=True)
+        return [{"id": d.doc_id, **d} for d in docs]
+
+    def set_title(self, session_id: int, title: str) -> None:
+        """Rename a session. Raises KeyError if missing."""
+        updated = self.table.update(
+            {"title": title, "updated_at": _now()}, doc_ids=[session_id]
+        )
+        if not updated:
+            raise KeyError(f"session {session_id} not found")
+
+    def set_initial_title(self, session_id: int, content: str) -> None:
+        """Title a still-untitled session from its first user message.
+
+        Whitespace is collapsed and the title truncated to the first 30
+        characters with an ellipsis. No-op for a missing session or one that
+        already has a title (renamed, or given one at creation).
+        """
+        doc = self.table.get(doc_id=session_id)
+        if doc is None or doc.get("title"):
+            return
+        text = " ".join(content.split())
+        title = text if len(text) <= 30 else text[:30].rstrip() + "…"
+        self.table.update({"title": title, "updated_at": _now()}, doc_ids=[session_id])
+
     def get_transcript(self, session_id: int) -> list[dict]:
         doc = self.table.get(doc_id=session_id)
         return list(doc["transcript"]) if doc else []

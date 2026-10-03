@@ -4,7 +4,13 @@ import pytest
 
 from app.agent.memory import FactStore
 from app.core.config import settings
-from app.core.database import add_compaction, get_conn, init_db, list_compactions
+from app.core.database import (
+    add_compaction,
+    get_conn,
+    init_db,
+    list_compactions,
+    migrate_messages_schema,
+)
 from app.core.session_store import get_session_store, migrate_legacy_sessions
 
 
@@ -48,6 +54,31 @@ def test_session_store_missing(stores) -> None:
     assert store.get_transcript(999) == []
     with pytest.raises(KeyError):
         store.replace_transcript(999, [])
+
+
+def test_set_initial_title(stores) -> None:
+    store = get_session_store()
+    sid = store.create(1)["id"]
+
+    # Short message: whitespace collapsed, used as-is.
+    store.set_initial_title(sid, "  how   do I\nship this?  ")
+    assert store.get(sid)["title"] == "how do I ship this?"
+
+    # A second message never overwrites the initial title.
+    store.set_initial_title(sid, "something else entirely")
+    assert store.get(sid)["title"] == "how do I ship this?"
+
+    # Long message: first 30 characters + ellipsis.
+    long_sid = store.create(1)["id"]
+    long = "x" * 30 + " y" * 10
+    store.set_initial_title(long_sid, long)
+    assert store.get(long_sid)["title"] == "x" * 30 + "…"
+
+    # Explicitly titled sessions are never touched; missing ones are a no-op.
+    titled = store.create(1, "keep me")["id"]
+    store.set_initial_title(titled, "nope")
+    assert store.get(titled)["title"] == "keep me"
+    store.set_initial_title(999, "ghost")
 
 
 def test_skill_fields(stores) -> None:
@@ -123,3 +154,64 @@ def test_legacy_session_migration(stores) -> None:
         assert conn.execute(
             "SELECT content FROM messages WHERE session_id = 1"
         ).fetchone()[0] == "kept"
+
+
+def test_legacy_messages_fk_migration(stores) -> None:
+    with get_conn() as conn:
+        # Replicate the legacy DB shape: messages carries an FK to sessions.
+        conn.execute("DROP TABLE messages")
+        conn.execute(
+            "CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, "
+            "role TEXT NOT NULL, content TEXT NOT NULL, metadata TEXT, "
+            "created_at TEXT DEFAULT (datetime('now')))"
+        )
+        conn.execute(
+            "CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "user_id INTEGER NOT NULL, title TEXT, created_at TEXT DEFAULT (datetime('now')))"
+        )
+        conn.execute("INSERT INTO sessions (user_id, title) VALUES (1, 'old')")
+        conn.execute(
+            "INSERT INTO messages (session_id, role, content) VALUES (1, 'user', 'kept')"
+        )
+    # Lifespan order: rebuild messages before the sessions table is dropped.
+    migrate_messages_schema()
+    migrate_legacy_sessions()
+    with get_conn() as conn:
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+        ).fetchone() is None
+        # Pre-existing rows survive the rebuild...
+        assert conn.execute(
+            "SELECT content FROM messages WHERE session_id = 1"
+        ).fetchone()[0] == "kept"
+        # ...and DML works even though the FK target table no longer exists.
+        conn.execute(
+            "INSERT INTO messages (session_id, role, content) VALUES (1, 'assistant', 'hi')"
+        )
+        conn.execute("DELETE FROM messages WHERE session_id = 1")
+    assert get_session_store().get(1) is not None
+
+
+def test_messages_schema_adds_soft_delete_columns(stores) -> None:
+    with get_conn() as conn:
+        # Replicate the pre-soft-delete shape: no FK, no soft-delete columns.
+        conn.execute("DROP TABLE messages")
+        conn.execute(
+            "CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "session_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, "
+            "metadata TEXT, created_at TEXT DEFAULT (datetime('now')))"
+        )
+        conn.execute(
+            "INSERT INTO messages (session_id, role, content) VALUES (1, 'user', 'kept')"
+        )
+    migrate_messages_schema()
+    with get_conn() as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
+        assert {"is_deleted", "deleted_at"} <= cols
+        content, is_deleted, deleted_at = conn.execute(
+            "SELECT content, is_deleted, deleted_at FROM messages WHERE session_id = 1"
+        ).fetchone()
+        assert content == "kept" and is_deleted == 0 and deleted_at is None
+    # Idempotent: a second run is a no-op.
+    migrate_messages_schema()

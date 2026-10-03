@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import chat, health, users
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import init_db, migrate_messages_schema
 from app.core.session_store import migrate_legacy_sessions
 
 
@@ -23,6 +23,7 @@ async def lifespan(_: FastAPI):
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
     )
     init_db()
+    migrate_messages_schema()
     migrate_legacy_sessions()
     yield
 

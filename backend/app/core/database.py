@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS messages (
     role       TEXT NOT NULL,
     content    TEXT NOT NULL,
     metadata   TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    is_deleted INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id);
@@ -71,6 +73,53 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+
+
+def migrate_messages_schema() -> None:
+    """Bring a legacy messages table up to the current schema; no-op when fresh.
+
+    Two legacy shapes, each handled once:
+    1. A dangling ``REFERENCES sessions(id)`` FK — sessions moved to TinyDB
+       and the SQLite table was dropped, so with foreign_keys ON any DML on
+       messages fails with ``no such table: main.sessions``; the table is
+       rebuilt without the FK.
+    2. Missing soft-delete columns (``is_deleted`` flag, ``deleted_at``
+       timestamp) — added in place.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages'"
+        ).fetchone()
+        if row is None:
+            return
+        if "REFERENCES sessions" in (row[0] or ""):
+            conn.executescript(
+                """
+                CREATE TABLE messages_new (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL,
+                    role       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    metadata   TEXT,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    is_deleted INTEGER NOT NULL DEFAULT 0,
+                    deleted_at TEXT
+                );
+                INSERT INTO messages_new
+                    (id, session_id, role, content, metadata, created_at)
+                    SELECT id, session_id, role, content, metadata, created_at FROM messages;
+                DROP TABLE messages;
+                ALTER TABLE messages_new RENAME TO messages;
+                CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id);
+                """
+            )
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
+        if "is_deleted" not in cols:
+            conn.execute(
+                "ALTER TABLE messages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
+            )
+        if "deleted_at" not in cols:
+            conn.execute("ALTER TABLE messages ADD COLUMN deleted_at TEXT")
 
 
 def add_compaction(

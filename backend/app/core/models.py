@@ -29,6 +29,10 @@ class Session(BaseModel):
     created_at: str | None = None
 
 
+class SessionRename(BaseModel):
+    title: str
+
+
 class MessageIn(BaseModel):
     role: str
     content: str

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { api } from "./api/client";
+import { api, type Session } from "./api/client";
 import { TopBar } from "./components/TopBar";
 import { ThreadRail } from "./components/ThreadRail";
 import { ChatPanel } from "./components/ChatPanel";
@@ -9,10 +9,13 @@ import { MemoryPanel } from "./components/MemoryPanel";
 const SESSION_KEY = "navee.sessionId";
 
 export default function App() {
+  const [userId, setUserId] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
 
-  // Bootstrap the chat surface: a default user and a session (persisted in
-  // localStorage so the transcript survives page reloads).
+  // Bootstrap the chat surface: a default user, the user's backend sessions,
+  // and an active session (last-used persisted in localStorage; a new session
+  // is created when the stored one no longer exists).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -20,25 +23,105 @@ export default function App() {
       if (users.length === 0) {
         users = [await api.createUser("local")];
       }
+      const uid = users[0].id;
+      let list = await api.listSessions(uid);
       const stored = Number(localStorage.getItem(SESSION_KEY));
-      const id = stored > 0 ? stored : (await api.createSession(users[0].id)).id;
-      localStorage.setItem(SESSION_KEY, String(id));
-      if (!cancelled) setSessionId(id);
+      let active = list.some((s) => s.id === stored) ? stored : null;
+      if (active === null) {
+        const created = await api.createSession(uid);
+        list = [created, ...list];
+        active = created.id;
+      }
+      localStorage.setItem(SESSION_KEY, String(active));
+      if (!cancelled) {
+        setUserId(uid);
+        setSessions(list);
+        setSessionId(active);
+      }
     })().catch((e) => console.error("chat bootstrap failed", e));
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const selectSession = (id: number) => {
+    setSessionId(id);
+    localStorage.setItem(SESSION_KEY, String(id));
+  };
+
+  const createConversation = async () => {
+    if (userId === null) return;
+    try {
+      const s = await api.createSession(userId);
+      setSessions((ss) => [s, ...ss]);
+      selectSession(s.id);
+    } catch (e) {
+      console.error("createSession failed", e);
+    }
+  };
+
+  const refreshSessions = async () => {
+    if (userId === null) return;
+    try {
+      setSessions(await api.listSessions(userId));
+    } catch (e) {
+      console.error("listSessions failed", e);
+    }
+  };
+
+  // The backend titles a session from its first user message; pick up the
+  // new title as soon as the stream is established.
+  const handleUserMessageSent = () => {
+    if (sessionId !== null && sessions.some((s) => s.id === sessionId && !s.title)) {
+      void refreshSessions();
+    }
+  };
+
+  const renameConversation = async (id: number, title: string) => {
+    try {
+      const s = await api.renameSession(id, title);
+      setSessions((ss) => ss.map((t) => (t.id === id ? s : t)));
+    } catch (e) {
+      console.error("renameSession failed", e);
+    }
+  };
+
+  const deleteConversation = async (id: number) => {
+    try {
+      await api.deleteSession(id);
+      const next = sessions.filter((t) => t.id !== id);
+      setSessions(next);
+      if (sessionId === id) {
+        if (next.length > 0) {
+          selectSession(next[0].id);
+        } else if (userId !== null) {
+          const s = await api.createSession(userId);
+          setSessions([s]);
+          selectSession(s.id);
+        }
+      }
+    } catch (e) {
+      console.error("deleteSession failed", e);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
-        <ThreadRail />
+        <ThreadRail
+          sessions={sessions}
+          activeId={sessionId}
+          onSelect={selectSession}
+          onCreate={createConversation}
+          onRename={renameConversation}
+          onDelete={deleteConversation}
+        />
         <main className="flex-1 overflow-hidden">
           <PanelGroup direction="horizontal" className="h-full">
             <Panel defaultSize={35} minSize={20} className="h-full">
               {sessionId !== null ? (
-                <ChatPanel sessionId={sessionId} />
+                <ChatPanel sessionId={sessionId} onUserMessageSent={handleUserMessageSent} />
               ) : (
                 <div className="h-full grid place-items-center text-sm text-zinc-400">
                   Loading…
