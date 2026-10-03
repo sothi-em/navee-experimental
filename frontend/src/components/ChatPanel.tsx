@@ -1,12 +1,109 @@
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot, Send } from "lucide-react";
+import { Bot, Loader2, Send, Wrench } from "lucide-react";
+import { api, streamMessage, StreamError, type ToolEvent } from "../api/client";
 
-const STUB_REPLY = `Stub reply — the live agent lands in the next pass.
+interface ChatMsg {
+  id: number | null; // backend id; null while the turn is in flight
+  role: "user" | "assistant";
+  content: string;
+  tools?: ToolEvent[];
+  error?: string;
+  streaming?: boolean;
+}
 
-- **Memory** is organized into stores
-- \`context budget\` tracks token usage`;
+function ToolCard({ tool }: { tool: ToolEvent }) {
+  const args = Object.keys(tool.arguments);
+  return (
+    <div className="mb-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-700">
+        <Wrench className="w-3 h-3 text-amber-500" />
+        {tool.name}
+      </div>
+      {args.length > 0 && (
+        <pre className="mt-1 text-[10px] leading-4 text-zinc-500 overflow-x-auto">
+          {JSON.stringify(tool.arguments)}
+        </pre>
+      )}
+      <pre className="mt-1 text-[11px] leading-4 text-zinc-700 overflow-x-auto whitespace-pre-wrap">
+        {tool.result}
+      </pre>
+    </div>
+  );
+}
 
-export function ChatPanel() {
+export function ChatPanel({ sessionId }: { sessionId: number }) {
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  // Load the persisted transcript when the session changes.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listMessages(sessionId)
+      .then((rows) => {
+        if (!cancelled) {
+          setMessages(
+            rows.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content }))
+          );
+        }
+      })
+      .catch((e) => console.error("listMessages failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  // Keep the newest content in view.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
+
+  const patchLastAssistant = (patch: (m: ChatMsg) => ChatMsg) =>
+    setMessages((ms) => {
+      const i = ms.length - 1;
+      if (i < 0 || ms[i].role !== "assistant") return ms;
+      const next = [...ms];
+      next[i] = patch(next[i]);
+      return next;
+    });
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || streaming) return;
+    setInput("");
+    setStreaming(true);
+    setMessages((ms) => [
+      ...ms,
+      { id: null, role: "user", content: text },
+      { id: null, role: "assistant", content: "", streaming: true },
+    ]);
+    try {
+      await streamMessage(sessionId, text, {
+        onDelta: (c) => patchLastAssistant((m) => ({ ...m, content: m.content + c })),
+        onTool: (t) =>
+          patchLastAssistant((m) => ({ ...m, tools: [...(m.tools ?? []), t] })),
+        onError: (msg) => patchLastAssistant((m) => ({ ...m, error: msg })),
+        onDone: (id) => patchLastAssistant((m) => ({ ...m, id })),
+      });
+    } catch (e) {
+      const msg =
+        e instanceof StreamError
+          ? e.status === 404
+            ? "Session not found — the backend store may have been reset."
+            : `Stream request failed: ${e.status}`
+          : e instanceof Error
+            ? e.message
+            : String(e);
+      patchLastAssistant((m) => ({ ...m, error: msg }));
+    } finally {
+      patchLastAssistant((m) => ({ ...m, streaming: false }));
+      setStreaming(false);
+    }
+  };
+
   return (
     <section className="h-full flex flex-col bg-background">
       <div className="h-10 px-4 flex items-center gap-2 border-b border-zinc-200">
@@ -17,29 +114,69 @@ export function ChatPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <div>
-          <div className="text-[10px] text-zinc-400 text-right">you</div>
-          <div className="ml-auto w-fit max-w-[80%] px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm">
-            How is memory organized?
+        {messages.length === 0 && (
+          <div className="text-xs text-zinc-400 text-center pt-8">
+            Start a conversation — the agent streams its reply and tool activity here.
           </div>
-        </div>
-        <div>
-          <div className="text-[10px] text-zinc-400">agent</div>
-          <div className="prose prose-sm max-w-none text-zinc-800">
-            <ReactMarkdown>{STUB_REPLY}</ReactMarkdown>
-          </div>
-        </div>
+        )}
+        {messages.map((m, i) =>
+          m.role === "user" ? (
+            <div key={m.id ?? `u-${i}`}>
+              <div className="text-[10px] text-zinc-400 text-right">you</div>
+              <div className="ml-auto w-fit max-w-[80%] px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm">
+                {m.content}
+              </div>
+            </div>
+          ) : (
+            <div key={m.id ?? `a-${i}`}>
+              <div className="text-[10px] text-zinc-400">agent</div>
+              {m.tools?.map((t, j) => (
+                <ToolCard key={j} tool={t} />
+              ))}
+              {m.content && (
+                <div className="prose prose-sm max-w-none text-zinc-800">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  {m.streaming && (
+                    <span className="inline-block w-2 h-4 ml-0.5 bg-indigo-400 align-text-bottom animate-pulse" />
+                  )}
+                </div>
+              )}
+              {m.streaming && !m.content && m.tools === undefined && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-500">
+                  <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
+                  Thinking
+                </span>
+              )}
+              {m.error && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-2 py-1 mt-1">
+                  {m.error}
+                </div>
+              )}
+            </div>
+          )
+        )}
+        <div ref={endRef} />
       </div>
 
       <div className="p-3 border-t border-zinc-200">
         <div className="flex gap-2">
           <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
             placeholder="Message the agent…"
-            className="flex-1 px-3 py-2 rounded-md border border-zinc-200 bg-zinc-50 text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            disabled={streaming}
+            className="flex-1 px-3 py-2 rounded-md border border-zinc-200 bg-zinc-50 text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           />
           <button
             type="button"
-            disabled
+            onClick={send}
+            disabled={streaming || input.trim() === ""}
             className="px-3 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50"
             aria-label="Send"
           >

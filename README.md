@@ -92,7 +92,7 @@ Backend settings come from environment variables or `backend/.env` (see
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_BASE_URL` | `http://0.0.0.0:8001/v1` | OpenAI-compatible endpoint |
+| `LLM_BASE_URL` | `http://127.0.0.1:8001/v1` | OpenAI-compatible endpoint |
 | `LLM_API_KEY` | `not-set` | API key (often a dummy for local) |
 | `LLM_MODEL` | `local-model` | model name to request |
 | `TOKENIZER_NAME` | `gpt2` | HF tokenizer id or local path |

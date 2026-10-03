@@ -20,8 +20,9 @@ class Settings(BaseSettings):
     chroma_path: str = "data/chroma"
 
     # Locally hosted, OpenAI-compatible LLM endpoint (e.g. llama.cpp, vLLM,
-    # Ollama's /v1).
-    llm_base_url: str = "http://0.0.0.0:8001/v1"
+    # Ollama's /v1). 127.0.0.1: 0.0.0.0 is a bind address and is not a valid
+    # connect target on Windows.
+    llm_base_url: str = "http://127.0.0.1:8001/v1"
     llm_api_key: str = "not-set"
     llm_model: str = "local-model"
 
