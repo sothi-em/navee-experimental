@@ -13,7 +13,9 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.agent.agent_loop import run_agent_stream
 from app.agent.llm import llm
-from app.core.database import get_conn
+from app.agent.tokenizer import truncate_to_tokens
+from app.core.config import settings
+from app.core.database import get_conn, get_user_facts_summary
 from app.core.models import (
     ChatStreamIn,
     Message,
@@ -25,6 +27,18 @@ from app.core.models import (
 from app.core.session_store import get_session_store
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def _user_facts_system(session_id: int) -> str | None:
+    """Budgeted system message with the user's facts summary; None if none."""
+    doc = get_session_store().get(session_id)
+    if doc is None:
+        return None
+    summary = get_user_facts_summary(doc["user_id"])
+    if not summary:
+        return None
+    summary = truncate_to_tokens(summary, settings.user_facts_budget)
+    return f"Known facts about the user:\n{summary}"
 
 
 @router.post("/sessions", response_model=Session, status_code=201)
@@ -89,7 +103,7 @@ def send_message(session_id: int, payload: MessageIn) -> list[dict]:
         )
         if payload.role == "user":
             get_session_store().set_initial_title(session_id, payload.content)
-            reply = llm.complete(payload.content)
+            reply = llm.complete(payload.content, system=_user_facts_system(session_id))
             conn.execute(
                 "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
                 (session_id, "assistant", reply),
@@ -116,6 +130,9 @@ async def stream_message(session_id: int, payload: ChatStreamIn):
             (session_id,)
         ).fetchall()
     history = [{"role": r["role"], "content": r["content"]} for r in rows]
+    system = _user_facts_system(session_id)
+    if system:
+        history.insert(0, {"role": "system", "content": system})
     return EventSourceResponse(_stream_turn(session_id, history))
 
 

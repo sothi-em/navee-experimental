@@ -30,5 +30,16 @@ class Settings(BaseSettings):
     # chunking. Point this at a local model dir for offline use.
     tokenizer_name: str = "gpt2"
 
+    # Context budgets (tokens). converse_token_budget is the total per-turn
+    # context envelope: SYSTEM_PROMPT + TOOL + SKILL (name + short description)
+    # + USER_FACTS (user facts summary) + latest compaction + current turn
+    # (agent + user message). The system prompt, tools, and current turn are
+    # rolling (variable); skill_budget, user_facts_budget, and
+    # compaction_budget are fixed allocations reserved up front.
+    converse_token_budget: int = 64000
+    compaction_budget: int = 16384  # cap for the summary of compacted old messages
+    skill_budget: int = 8192        # cap for skill references (name + short description)
+    user_facts_budget: int = 1024   # cap for the user facts summary
+
 
 settings = Settings()

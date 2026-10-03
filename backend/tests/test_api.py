@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
-from app.core.database import get_conn
+from app.core.database import get_conn, set_user_facts_summary
 from server import app
 
 
@@ -163,3 +163,35 @@ def test_stream_message_with_tool_round(client: TestClient, monkeypatch) -> None
         row = conn.execute("SELECT metadata FROM messages WHERE id = ?", (message_id,)).fetchone()
     stored = json.loads(row["metadata"])["tool_events"]
     assert stored[0]["name"] == "echo" and stored[0]["result"] == "hi"
+
+
+def test_stream_injects_user_facts_summary(client: TestClient, monkeypatch) -> None:
+    r = client.post("/api/users", json={"username": "erin"})
+    user_id = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id})
+    session_id = r.json()["id"]
+    set_user_facts_summary(user_id, "Erin is a backend engineer.")
+
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def _chunk(content=None, finish=None):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content, tool_calls=None),
+            finish_reason=finish)])
+
+    async def fake_stream(self, messages, tools=None):
+        seen["first"] = messages[0]
+        yield _chunk(content="ok", finish="stop")
+
+    monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
+    with client.stream("POST", f"/api/chat/sessions/{session_id}/messages/stream",
+                       json={"content": "hi"}) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    assert seen["first"]["role"] == "system"
+    assert "Erin is a backend engineer." in seen["first"]["content"]
+    # The transcript still contains only the real turns.
+    r = client.get(f"/api/chat/sessions/{session_id}/messages")
+    assert [m["role"] for m in r.json()] == ["user", "assistant"]

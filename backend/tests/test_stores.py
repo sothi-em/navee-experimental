@@ -2,14 +2,19 @@
 
 import pytest
 
-from app.agent.memory import FactStore
+from app.agent.memory import SkillStore
 from app.core.config import settings
 from app.core.database import (
     add_compaction,
+    add_user_fact,
+    delete_user_fact,
     get_conn,
+    get_user_facts_summary,
     init_db,
     list_compactions,
+    list_user_facts,
     migrate_messages_schema,
+    set_user_facts_summary,
 )
 from app.core.session_store import get_session_store, migrate_legacy_sessions
 
@@ -82,7 +87,7 @@ def test_set_initial_title(stores) -> None:
 
 
 def test_skill_fields(stores) -> None:
-    store = FactStore()
+    store = SkillStore()
     store.add_skill("summarize", "Summarizes long threads.", "Step 1: collect turns.")
     skill = store.list_skills()[-1]
     assert skill["name"] == "summarize"
@@ -215,3 +220,30 @@ def test_messages_schema_adds_soft_delete_columns(stores) -> None:
         assert content == "kept" and is_deleted == 0 and deleted_at is None
     # Idempotent: a second run is a no-op.
     migrate_messages_schema()
+
+
+def test_user_facts_roundtrip(stores) -> None:
+    with get_conn() as conn:
+        conn.execute("INSERT INTO users (username) VALUES (?)", ("dave",))
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username = 'dave'"
+        ).fetchone()[0]
+    fid = add_user_fact(user_id, "Prefers dark mode")
+    facts = list_user_facts(user_id)
+    assert [f["fact"] for f in facts] == ["Prefers dark mode"]
+    assert facts[0]["id"] == fid
+    set_user_facts_summary(user_id, "Likes dark mode.")
+    assert get_user_facts_summary(user_id) == "Likes dark mode."
+    delete_user_fact(fid)
+    assert list_user_facts(user_id) == []
+
+
+def test_truncate_to_tokens(stores) -> None:
+    from app.agent.tokenizer import count_tokens, truncate_to_tokens
+
+    text = " ".join(f"word{i}" for i in range(200))
+    out = truncate_to_tokens(text, 10)
+    assert count_tokens(out) <= 10
+    assert out != text
+    assert truncate_to_tokens("", 10) == ""
+    assert truncate_to_tokens(text, 0) == ""

@@ -2,8 +2,8 @@
 
 Two complementary stores, matching the tiered model in the architecture doc:
 
-- FactStore: lightweight structured records (learned facts + skills) in TinyDB.
-  Human-visible, human-editable.
+- SkillStore: global skills in TinyDB. User-scoped facts live in SQLite
+  (app/core/database.py).
 - VectorRecall: flat-file ChromaDB index for semantic recall. Optional — if
   ChromaDB is unavailable it degrades to a no-op so core persistence never
   breaks.
@@ -16,29 +16,22 @@ from app.core.config import settings
 from app.core.tinydb import get_db
 
 
-class FactStore:
-    """Persistent store for learned facts and skills (TinyDB)."""
+class SkillStore:
+    """Persistent store for global skills (TinyDB).
+
+    User-scoped facts live in SQLite (app/core/database.py, user_facts table).
+    """
 
     def __init__(self) -> None:
         self.db = get_db()
-        self.facts = self.db.table("facts")
         self.skills = self.db.table("skills")
 
-    def add_fact(self, text: str, category: str = "fact", user_id: int | None = None) -> int:
-        return self.facts.insert({"text": text, "category": category, "user_id": user_id})
-
-    def list_facts(self) -> list[dict]:
-        return self.facts.all()
-
-    def add_skill(
-        self, name: str, description: str, content: str, user_id: int | None = None
-    ) -> int:
+    def add_skill(self, name: str, description: str, content: str) -> int:
         return self.skills.insert(
             {
                 "name": name,
                 "description": description,
                 "content": content,
-                "user_id": user_id,
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )

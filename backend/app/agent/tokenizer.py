@@ -33,3 +33,12 @@ def chunk_text(text: str, max_tokens: int) -> list[str]:
     ids = enc.encode(text, add_special_tokens=False)
     slices = [ids[i : i + max_tokens] for i in range(0, len(ids), max_tokens)]
     return [enc.decode(chunk) for chunk in slices]
+
+
+def truncate_to_tokens(text: str, max_tokens: int) -> str:
+    """Whole-token-aligned prefix of text of at most max_tokens tokens."""
+    if not text or max_tokens <= 0:
+        return ""
+    enc = _tokenizer()
+    ids = enc.encode(text, add_special_tokens=False)
+    return enc.decode(ids[:max_tokens])

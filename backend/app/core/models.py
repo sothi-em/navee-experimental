@@ -14,6 +14,14 @@ class User(BaseModel):
     id: int
     username: str
     display_name: str | None = None
+    facts_summary: str | None = None
+    created_at: str | None = None
+
+
+class UserFact(BaseModel):
+    id: int
+    user_id: int
+    fact: str
     created_at: str | None = None
 
 
@@ -91,7 +99,6 @@ class Skill(BaseModel):
     name: str
     description: str = ""  # default: pre-change docs lack the field
     content: str
-    user_id: int | None = None
     created_at: str | None = None
 
 
