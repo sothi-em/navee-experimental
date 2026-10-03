@@ -31,9 +31,10 @@ export interface Health {
 }
 
 export interface ToolEvent {
+  id: string;
   name: string;
   arguments: Record<string, unknown>;
-  result: string;
+  result?: string;
 }
 
 export interface StreamCallbacks {
@@ -41,6 +42,9 @@ export interface StreamCallbacks {
    *  and the session title (first message) is set by then. */
   onStart?: () => void;
   onDelta?: (content: string) => void;
+  /** Fired when a tool call begins (before it runs). */
+  onToolStart?: (tool: ToolEvent) => void;
+  /** Fired when a tool call completes; `result` is set. */
   onTool?: (tool: ToolEvent) => void;
   onError?: (message: string) => void;
   onDone?: (messageId: number | null) => void;
@@ -99,6 +103,7 @@ function handleFrame(frame: string, cb: StreamCallbacks): void {
   let data: {
     type?: string;
     content?: string;
+    id?: string;
     name?: string;
     arguments?: Record<string, unknown>;
     result?: string;
@@ -114,8 +119,12 @@ function handleFrame(frame: string, cb: StreamCallbacks): void {
     case "delta":
       if (data.content) cb.onDelta?.(data.content);
       break;
+    case "tool_start":
+      if (data.name) cb.onToolStart?.({ id: data.id ?? "", name: data.name, arguments: data.arguments ?? {} });
+      break;
     case "tool":
-      if (data.name) cb.onTool?.({ name: data.name, arguments: data.arguments ?? {}, result: data.result ?? "" });
+      if (data.name)
+        cb.onTool?.({ id: data.id ?? "", name: data.name, arguments: data.arguments ?? {}, result: data.result ?? "" });
       break;
     case "error":
       cb.onError?.(data.message ?? "unknown error");

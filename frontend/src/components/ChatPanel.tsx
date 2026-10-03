@@ -7,27 +7,45 @@ interface ChatMsg {
   id: number | null; // backend id; null while the turn is in flight
   role: "user" | "assistant";
   content: string;
-  tools?: ToolEvent[];
+  tools?: ToolState[];
   error?: string;
   streaming?: boolean;
 }
 
-function ToolCard({ tool }: { tool: ToolEvent }) {
+interface ToolState extends ToolEvent {
+  status: "running" | "ok" | "error";
+}
+
+function ToolPill({ tool }: { tool: ToolState }) {
+  const [open, setOpen] = useState(false);
   const args = Object.keys(tool.arguments);
   return (
-    <div className="mb-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-700">
-        <Wrench className="w-3 h-3 text-amber-500" />
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 transition-colors"
+      >
+        {tool.status === "running" && <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />}
+        {tool.status !== "running" && (
+          <Wrench className={`w-3 h-3 ${tool.status === "ok" ? "text-emerald-600" : "text-red-600"}`} />
+        )}
         {tool.name}
-      </div>
-      {args.length > 0 && (
-        <pre className="mt-1 text-[10px] leading-4 text-zinc-500 overflow-x-auto">
-          {JSON.stringify(tool.arguments)}
-        </pre>
+      </button>
+      {open && (
+        <div className="mt-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+          {args.length > 0 && (
+            <pre className="text-[10px] leading-4 text-zinc-500 overflow-x-auto">
+              {JSON.stringify(tool.arguments)}
+            </pre>
+          )}
+          {tool.result !== undefined && (
+            <pre className="mt-1 text-[11px] leading-4 text-zinc-700 overflow-x-auto whitespace-pre-wrap">
+              {tool.result}
+            </pre>
+          )}
+        </div>
       )}
-      <pre className="mt-1 text-[11px] leading-4 text-zinc-700 overflow-x-auto whitespace-pre-wrap">
-        {tool.result}
-      </pre>
     </div>
   );
 }
@@ -90,8 +108,22 @@ export function ChatPanel({
       await streamMessage(sessionId, text, {
         onStart: onUserMessageSent,
         onDelta: (c) => patchLastAssistant((m) => ({ ...m, content: m.content + c })),
+        onToolStart: (t) =>
+          patchLastAssistant((m) => ({
+            ...m,
+            tools: [...(m.tools ?? []), { ...t, status: "running" as const }],
+          })),
         onTool: (t) =>
-          patchLastAssistant((m) => ({ ...m, tools: [...(m.tools ?? []), t] })),
+          patchLastAssistant((m) => {
+            const status: ToolState["status"] = t.result?.startsWith("error:") ? "error" : "ok";
+            const tools = m.tools ?? [];
+            return {
+              ...m,
+              tools: tools.some((x) => x.id === t.id)
+                ? tools.map((x) => (x.id === t.id ? { ...x, ...t, status } : x))
+                : [...tools, { ...t, status }],
+            };
+          }),
         onError: (msg) => patchLastAssistant((m) => ({ ...m, error: msg })),
         onDone: (id) => patchLastAssistant((m) => ({ ...m, id })),
       });
@@ -138,7 +170,7 @@ export function ChatPanel({
             <div key={m.id ?? `a-${i}`}>
               <div className="text-[10px] text-zinc-400">agent</div>
               {m.tools?.map((t, j) => (
-                <ToolCard key={j} tool={t} />
+                <ToolPill key={t.id || j} tool={t} />
               ))}
               {m.content && (
                 <div className="prose prose-sm max-w-none text-zinc-800">

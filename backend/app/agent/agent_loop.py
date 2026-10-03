@@ -20,7 +20,8 @@ async def run_agent_stream(messages: list[dict]):
     """Run the tool loop. `messages` is OpenAI-format history including the
     new user turn. Yields:
       {"type": "delta", "content": str}
-      {"type": "tool", "name": str, "arguments": dict, "result": str}
+      {"type": "tool_start", "id": str, "name": str, "arguments": dict}
+      {"type": "tool", "id": str, "name": str, "arguments": dict, "result": str}
       {"type": "error", "message": str}   (terminal)
     """
     specs = tool_specs() or None
@@ -62,9 +63,16 @@ async def run_agent_stream(messages: list[dict]):
             }
         )
         for tc in tool_calls.values():
+            yield {
+                "type": "tool_start",
+                "id": tc["id"],
+                "name": tc["name"],
+                "arguments": _safe_json(tc["arguments"]),
+            }
             result = await _execute_tool(tc)
             yield {
                 "type": "tool",
+                "id": tc["id"],
                 "name": tc["name"],
                 "arguments": _safe_json(tc["arguments"]),
                 "result": result,

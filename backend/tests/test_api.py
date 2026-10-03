@@ -133,8 +133,16 @@ def test_stream_message_with_tool_round(client: TestClient, monkeypatch) -> None
         body = "".join(resp.iter_text()).replace("\r\n", "\n")
     frames = [f for f in body.split("\n\n") if f.strip()]
     events = [f.split("\n")[0] for f in frames]
-    assert "event: tool" in events and "event: delta" in events and "event: done" in events
-    tool_frame = next(f for f in frames if f.startswith("event: tool"))
+    assert (
+        "event: tool_start" in events
+        and "event: tool" in events
+        and "event: delta" in events
+        and "event: done" in events
+    )
+    start_frame = next(f for f in frames if f.startswith("event: tool_start\n"))
+    assert '"id": "call_1"' in start_frame and '"result"' not in start_frame
+    assert events.index("event: tool_start") < events.index("event: tool")
+    tool_frame = next(f for f in frames if f.startswith("event: tool\n"))
     assert '"name": "echo"' in tool_frame and '"result": "hi"' in tool_frame
     done_data = next(l.removeprefix("data: ") for f in frames
                      if f.startswith("event: done") for l in f.split("\n") if l.startswith("data:"))
