@@ -6,8 +6,8 @@ with `uv`.
 ## Stack
 
 - **FastAPI + uvicorn** — HTTP API
-- **SQLite** (`sqlite3`) — users, sessions, full transcript
-- **TinyDB** — learned facts + skills (lightweight, human-editable)
+- **SQLite** (`sqlite3`) — users, full transcript, compaction history
+- **TinyDB** — sessions (transcript window), learned facts + skills (lightweight, human-editable)
 - **ChromaDB** (flat-file / persistent) — semantic recall index (optional)
 - **transformers** — tokenizer for token counting and chunking
 - **openai** — client for a locally hosted, OpenAI-compatible LLM
@@ -23,10 +23,11 @@ cp .env.example .env        # then point LLM_* / TOKENIZER_NAME at your local mo
 ## Run
 
 ```bash
-uv run uvicorn server:app --reload --port 8000
+uv run navee                     # http://127.0.0.1:8000
+uv run navee --port 9000 --host 0.0.0.0
 ```
 
-Interactive docs: http://localhost:8000/docs
+Interactive docs: http://127.0.0.1:8000/docs
 
 ## Test
 

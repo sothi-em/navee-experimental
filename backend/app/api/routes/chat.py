@@ -2,8 +2,8 @@
 
 `send_message` is the minimal non-streaming loop: persist the user turn, call
 the LLM, persist the reply. `stream_message` runs the full agent loop
-(streaming + tool execution) over SSE. Context shaping and recall injection
-are intentionally deferred to a later pass.
+(streaming + tool execution) over SSE. Sessions live in TinyDB; context
+shaping and recall injection remain deferred to a later pass.
 """
 
 import json
@@ -15,6 +15,7 @@ from app.agent.agent_loop import run_agent_stream
 from app.agent.llm import llm
 from app.core.database import get_conn
 from app.core.models import ChatStreamIn, Message, MessageIn, Session, SessionCreate
+from app.core.session_store import get_session_store
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -23,14 +24,9 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 def create_session(payload: SessionCreate) -> dict:
     with get_conn() as conn:
         user = conn.execute("SELECT id FROM users WHERE id = ?", (payload.user_id,)).fetchone()
-        if user is None:
-            raise HTTPException(status_code=404, detail="user not found")
-        cur = conn.execute(
-            "INSERT INTO sessions (user_id, title) VALUES (?, ?)",
-            (payload.user_id, payload.title),
-        )
-        row = conn.execute("SELECT * FROM sessions WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return dict(row)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    return get_session_store().create(payload.user_id, payload.title)
 
 
 @router.get("/sessions/{session_id}/messages", response_model=list[Message])
@@ -44,10 +40,9 @@ def list_messages(session_id: int) -> list[dict]:
 
 @router.post("/sessions/{session_id}/messages", response_model=list[Message])
 def send_message(session_id: int, payload: MessageIn) -> list[dict]:
+    if not get_session_store().exists(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
     with get_conn() as conn:
-        session = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        if session is None:
-            raise HTTPException(status_code=404, detail="session not found")
         conn.execute(
             "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
             (session_id, payload.role, payload.content),
@@ -66,10 +61,9 @@ def send_message(session_id: int, payload: MessageIn) -> list[dict]:
 
 @router.post("/sessions/{session_id}/messages/stream")
 async def stream_message(session_id: int, payload: ChatStreamIn):
+    if not get_session_store().exists(session_id):
+        raise HTTPException(status_code=404, detail="session not found")
     with get_conn() as conn:
-        session = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        if session is None:
-            raise HTTPException(status_code=404, detail="session not found")
         conn.execute(
             "INSERT INTO messages (session_id, role, content) VALUES (?, 'user', ?)",
             (session_id, payload.content),

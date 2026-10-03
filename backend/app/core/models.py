@@ -1,6 +1,8 @@
-"""Pydantic request/response models."""
+"""Pydantic models (request/response + storage)."""
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserCreate(BaseModel):
@@ -41,4 +43,60 @@ class Message(BaseModel):
     session_id: int
     role: str
     content: str
+    created_at: str | None = None
+
+
+class ToolCallFunction(BaseModel):
+    name: str
+    arguments: str = ""  # JSON-encoded string, OpenAI wire format
+
+
+class ToolCall(BaseModel):
+    id: str
+    type: Literal["function"] = "function"
+    function: ToolCallFunction
+
+
+class TranscriptMessage(BaseModel):
+    """One entry of the session transcript window (OpenAI wire format).
+
+    extra="allow": the window is a pass-through to the model — never drop
+    fields we don't model yet.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    role: str
+    content: str | None = None
+    tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = None
+
+
+class SessionDoc(BaseModel):
+    """TinyDB session document; the TinyDB doc_id is the session id."""
+
+    user_id: int
+    title: str | None = None
+    transcript: list[TranscriptMessage] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+
+
+class Skill(BaseModel):
+    id: int
+    name: str
+    description: str = ""  # default: pre-change docs lack the field
+    content: str
+    user_id: int | None = None
+    created_at: str | None = None
+
+
+class Compaction(BaseModel):
+    id: int
+    session_id: int
+    summary: str
+    up_to_message_id: int | None = None
+    messages_compacted: int = 0
+    tokens_before: int | None = None
+    tokens_after: int | None = None
     created_at: str | None = None

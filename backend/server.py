@@ -1,5 +1,6 @@
 """FastAPI application factory and entrypoint."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,11 +9,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import chat, health, users
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.session_store import migrate_legacy_sessions
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # uvicorn's default log config only attaches handlers to the
+    # ``uvicorn.*`` loggers, leaving the root logger handler-less; without
+    # this, our own loggers' INFO messages are dropped. basicConfig is a
+    # no-op when a handler is already present (e.g. custom log_config).
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+    )
     init_db()
+    migrate_legacy_sessions()
     yield
 
 
@@ -34,7 +45,19 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """CLI entrypoint: ``uv run navee [--host H] [--port P]``."""
+    import argparse
+
     import uvicorn
 
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    parser = argparse.ArgumentParser(prog="navee", description="Run the Navee API server.")
+    parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
+    args = parser.parse_args()
+    print(f"Navee API: http://{args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

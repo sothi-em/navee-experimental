@@ -11,6 +11,7 @@ from server import app
 def client(tmp_path, monkeypatch):
     # Isolate storage to a temp dir for the duration of the test.
     monkeypatch.setattr(settings, "database_path", str(tmp_path / "test.db"))
+    monkeypatch.setattr(settings, "tinydb_path", str(tmp_path / "test.json"))
     with TestClient(app) as c:
         yield c
 

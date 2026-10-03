@@ -1,8 +1,9 @@
-"""SQLite persistence for users, sessions, and the full transcript.
+"""SQLite persistence for users, the full transcript, and compaction history.
 
 The transcript is the durable, human-visible record. The model's per-turn view
 is a separate, lossy projection built elsewhere — this DB is the source of
-truth for what actually happened in a session.
+truth for what actually happened in a session. Sessions themselves live in
+TinyDB (app/core/session_store.py).
 """
 
 import sqlite3
@@ -20,16 +21,9 @@ CREATE TABLE IF NOT EXISTS users (
     created_at   TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title      TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-);
-
 CREATE TABLE IF NOT EXISTS messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    session_id INTEGER NOT NULL,
     role       TEXT NOT NULL,
     content    TEXT NOT NULL,
     metadata   TEXT,
@@ -37,7 +31,19 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id);
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS compactions (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id         INTEGER NOT NULL,
+    summary            TEXT NOT NULL,
+    up_to_message_id   INTEGER,
+    messages_compacted INTEGER NOT NULL DEFAULT 0,
+    tokens_before      INTEGER,
+    tokens_after       INTEGER,
+    created_at         TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_compactions_session ON compactions(session_id, id);
 """
 
 
@@ -65,3 +71,36 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+
+
+def add_compaction(
+    session_id: int,
+    summary: str,
+    up_to_message_id: int | None = None,
+    messages_compacted: int = 0,
+    tokens_before: int | None = None,
+    tokens_after: int | None = None,
+) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO compactions "
+            "(session_id, summary, up_to_message_id, messages_compacted, tokens_before, tokens_after) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                session_id,
+                summary,
+                up_to_message_id,
+                messages_compacted,
+                tokens_before,
+                tokens_after,
+            ),
+        )
+        return cur.lastrowid
+
+
+def list_compactions(session_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM compactions WHERE session_id = ? ORDER BY id", (session_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]

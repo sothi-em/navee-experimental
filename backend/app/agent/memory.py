@@ -9,19 +9,18 @@ Two complementary stores, matching the tiered model in the architecture doc:
   breaks.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 
-from tinydb import TinyDB
-
 from app.core.config import settings
+from app.core.tinydb import get_db
 
 
 class FactStore:
     """Persistent store for learned facts and skills (TinyDB)."""
 
     def __init__(self) -> None:
-        Path(settings.tinydb_path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = TinyDB(settings.tinydb_path)
+        self.db = get_db()
         self.facts = self.db.table("facts")
         self.skills = self.db.table("skills")
 
@@ -31,8 +30,18 @@ class FactStore:
     def list_facts(self) -> list[dict]:
         return self.facts.all()
 
-    def add_skill(self, name: str, content: str) -> int:
-        return self.skills.insert({"name": name, "content": content})
+    def add_skill(
+        self, name: str, description: str, content: str, user_id: int | None = None
+    ) -> int:
+        return self.skills.insert(
+            {
+                "name": name,
+                "description": description,
+                "content": content,
+                "user_id": user_id,
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
     def list_skills(self) -> list[dict]:
         return self.skills.all()
