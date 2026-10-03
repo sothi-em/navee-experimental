@@ -35,8 +35,8 @@ pushed into typed, owner-scoped, human-visible stores.
 
 ```
 backend/    FastAPI + uv (Python 3.13)
+  server.py         FastAPI app factory + entrypoint
   app/
-    main.py           app factory + entrypoint
     core/             config, SQLite store, pydantic models
     agent/            llm, tokenizer, memory/recall, tools
     api/routes/       health, users, chat
@@ -62,8 +62,12 @@ docs/       architecture & strategy notes
 cd backend
 uv sync --all-extras          # install deps into .venv
 cp .env.example .env          # then set LLM_* and TOKENIZER_NAME
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn server:app --reload --port 8000
 ```
+
+> The venv lives at `backend/.venv` (uv projects live in `backend/`, not the
+> repo root). In PyCharm, set the project interpreter to
+> `backend/.venv`, not a root-level venv.
 
 - API docs: http://localhost:8000/docs
 - Point `LLM_BASE_URL` / `LLM_MODEL` at your local model server.

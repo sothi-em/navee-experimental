@@ -23,7 +23,7 @@ cp .env.example .env        # then point LLM_* / TOKENIZER_NAME at your local mo
 ## Run
 
 ```bash
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn server:app --reload --port 8000
 ```
 
 Interactive docs: http://localhost:8000/docs
@@ -37,8 +37,8 @@ uv run pytest
 ## Layout
 
 ```
+server.py            # FastAPI app factory + entrypoint
 app/
-  main.py            # app factory + entrypoint
   config.py          # settings (env / .env)
   core/
     database.py      # SQLite schema + connection helper
