@@ -32,6 +32,10 @@ class MessageIn(BaseModel):
     content: str
 
 
+class ChatStreamIn(BaseModel):
+    content: str = Field(min_length=1)
+
+
 class Message(BaseModel):
     id: int
     session_id: int

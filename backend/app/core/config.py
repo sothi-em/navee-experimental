@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Locally hosted, OpenAI-compatible LLM endpoint (e.g. llama.cpp, vLLM,
     # Ollama's /v1).
-    llm_base_url: str = "http://localhost:8080/v1"
+    llm_base_url: str = "http://0.0.0.0:8001/v1"
     llm_api_key: str = "not-set"
     llm_model: str = "local-model"
 
