@@ -1,0 +1,33 @@
+"""Application settings.
+
+All values can be overridden via environment variables (case-insensitive,
+matching the field name) or a backend/.env file. No auth by design: this is an
+experimental sandbox.
+"""
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # CORS — the Vite dev server origin.
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    # Storage locations (created on demand).
+    database_path: str = "data/navee.db"
+    tinydb_path: str = "data/navee.json"
+    chroma_path: str = "data/chroma"
+
+    # Locally hosted, OpenAI-compatible LLM endpoint (e.g. llama.cpp, vLLM,
+    # Ollama's /v1).
+    llm_base_url: str = "http://localhost:8080/v1"
+    llm_api_key: str = "not-set"
+    llm_model: str = "local-model"
+
+    # HuggingFace tokenizer id or a local path used for token counting and
+    # chunking. Point this at a local model dir for offline use.
+    tokenizer_name: str = "gpt2"
+
+
+settings = Settings()

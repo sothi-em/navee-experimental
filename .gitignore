@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Runtime data (SQLite, TinyDB, ChromaDB)
+backend/data/
+*.db
+*.sqlite3
+
+# Env
+.env
+.env.local
+
+# Node
+node_modules/
+frontend/dist/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
