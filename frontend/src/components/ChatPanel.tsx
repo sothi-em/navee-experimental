@@ -183,7 +183,7 @@ export function ChatPanel({
               {m.streaming && !m.content && m.tools === undefined && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-500">
                   <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
-                  Thinking
+                  thinking
                 </span>
               )}
               {m.error && (
