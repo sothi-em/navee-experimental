@@ -23,6 +23,15 @@ def count_tokens(text: str) -> int:
     return len(_tokenizer().encode(text))
 
 
+def estimate_tokens(text: str) -> int:
+    """count_tokens with a char-based fallback when the tokenizer is
+    unavailable, so read-only stats never 500."""
+    try:
+        return count_tokens(text)
+    except Exception:  # noqa: BLE001 — tokenizer load failure is non-fatal here
+        return len(text) // 4
+
+
 def chunk_text(text: str, max_tokens: int) -> list[str]:
     """Split text into chunks of at most max_tokens each (whole-token aligned)."""
     if not text:

@@ -195,3 +195,74 @@ def test_stream_injects_user_facts_summary(client: TestClient, monkeypatch) -> N
     # The transcript still contains only the real turns.
     r = client.get(f"/api/chat/sessions/{session_id}/messages")
     assert [m["role"] for m in r.json()] == ["user", "assistant"]
+
+
+def test_memory_stats(client: TestClient) -> None:
+    from app.agent.memory import SkillStore
+    from app.core.database import add_compaction, add_user_fact
+
+    user_id = client.post("/api/users", json={"username": "dave"}).json()["id"]
+    session_id = client.post(
+        "/api/chat/sessions", json={"user_id": user_id}
+    ).json()["id"]
+
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO messages (session_id, role, content) VALUES (?, 'user', ?)",
+            (session_id, "hello there"),
+        )
+    add_user_fact(user_id, "likes tea")
+    SkillStore().add_skill("greeting", "say hi", "skill body")
+    add_compaction(
+        session_id, "summary text", messages_compacted=4,
+        tokens_before=100, tokens_after=10,
+    )
+
+    r = client.get("/api/memory/stats", params={"user_id": user_id, "session_id": session_id})
+    assert r.status_code == 200
+    body = r.json()
+    ext = body["external_store"]
+    assert ext["messages_total"] == 1 and ext["messages_session"] == 1
+    assert ext["sessions_total"] == 1
+    assert isinstance(ext["vector_recall"], bool)
+    b = body["context_budget"]
+    assert b["total"] == settings.converse_token_budget
+    assert b["current_chat"] > 0 and b["compaction"] > 0 and b["skills"] > 0
+    assert b["user_facts"] == 0 and b["system_prompt"] == 0
+    assert [s["name"] for s in body["skills"]] == ["greeting"]
+    assert "content" not in body["skills"][0]
+    assert [f["fact"] for f in body["user_facts"]] == ["likes tea"]
+    assert body["compactions"][0]["tokens_before"] == 100
+
+
+def test_memory_stats_unknown_user_and_session(client: TestClient) -> None:
+    assert client.get("/api/memory/stats", params={"user_id": 99999}).status_code == 404
+    user_id = client.post("/api/users", json={"username": "frank"}).json()["id"]
+    assert (
+        client.get(
+            "/api/memory/stats", params={"user_id": user_id, "session_id": 424242}
+        ).status_code
+        == 404
+    )
+
+
+def test_memory_stats_without_session(client: TestClient) -> None:
+    user_id = client.post("/api/users", json={"username": "gina"}).json()["id"]
+    r = client.get("/api/memory/stats", params={"user_id": user_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["external_store"]["messages_session"] == 0
+    assert body["context_budget"]["current_chat"] == 0
+    assert body["compactions"] == []
+
+
+def test_memory_stats_tokenizer_fallback(client: TestClient, monkeypatch) -> None:
+    from app.agent import tokenizer as tok
+
+    def boom(text: str) -> int:
+        raise RuntimeError("no tokenizer")
+
+    monkeypatch.setattr(tok, "count_tokens", boom)
+    user_id = client.post("/api/users", json={"username": "hank"}).json()["id"]
+    r = client.get("/api/memory/stats", params={"user_id": user_id})
+    assert r.status_code == 200

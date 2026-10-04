@@ -12,6 +12,7 @@ export default function App() {
   const [userId, setUserId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
+  const [memoryTick, setMemoryTick] = useState(0);
 
   // Bootstrap the chat surface: a default user, the user's backend sessions,
   // and an active session (last-used persisted in localStorage; falls back to
@@ -68,6 +69,7 @@ export default function App() {
   // The backend titles a session from its first user message; pick up the
   // new title as soon as the stream is established.
   const handleUserMessageSent = () => {
+    setMemoryTick((t) => t + 1);
     if (sessionId !== null && sessions.some((s) => s.id === sessionId && !s.title)) {
       void refreshSessions();
     }
@@ -131,7 +133,7 @@ export default function App() {
             </Panel>
             <PanelResizeHandle className="w-1 bg-zinc-200 hover:bg-indigo-500/50 transition-colors cursor-col-resize" />
             <Panel defaultSize={65} minSize={25} className="h-full">
-              <MemoryPanel />
+              <MemoryPanel userId={userId} sessionId={sessionId} tick={memoryTick} />
             </Panel>
           </PanelGroup>
         </main>

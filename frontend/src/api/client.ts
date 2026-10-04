@@ -23,6 +23,55 @@ export interface Message {
   created_at: string | null;
 }
 
+export interface UserFact {
+  id: number;
+  user_id: number;
+  fact: string;
+  created_at: string | null;
+}
+
+export interface SkillRef {
+  id: number;
+  name: string;
+  description: string;
+  created_at: string | null;
+}
+
+export interface Compaction {
+  id: number;
+  session_id: number;
+  summary: string;
+  up_to_message_id: number | null;
+  messages_compacted: number;
+  tokens_before: number | null;
+  tokens_after: number | null;
+  created_at: string | null;
+}
+
+export interface ExternalStoreStats {
+  vector_recall: boolean;
+  messages_total: number;
+  messages_session: number;
+  sessions_total: number;
+}
+
+export interface ContextBudgetStats {
+  total: number;
+  system_prompt: number;
+  compaction: number;
+  current_chat: number;
+  user_facts: number;
+  skills: number;
+}
+
+export interface MemoryStats {
+  external_store: ExternalStoreStats;
+  context_budget: ContextBudgetStats;
+  skills: SkillRef[];
+  user_facts: UserFact[];
+  compactions: Compaction[];
+}
+
 export interface Health {
   status: string;
   llm_base_url: string;
@@ -175,4 +224,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ role, content }),
     }),
+  memoryStats: (userId: number, sessionId: number | null) =>
+    request<MemoryStats>(
+      `/api/memory/stats?user_id=${userId}${sessionId !== null ? `&session_id=${sessionId}` : ""}`
+    ),
 };

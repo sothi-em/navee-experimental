@@ -111,3 +111,36 @@ class Compaction(BaseModel):
     tokens_before: int | None = None
     tokens_after: int | None = None
     created_at: str | None = None
+
+
+class ExternalStoreStats(BaseModel):
+    vector_recall: bool
+    messages_total: int
+    messages_session: int
+    sessions_total: int
+
+
+class ContextBudgetStats(BaseModel):
+    total: int
+    system_prompt: int
+    compaction: int
+    current_chat: int
+    user_facts: int
+    skills: int
+
+
+class SkillRef(BaseModel):
+    """Skill without `content` — the card shows name + description only."""
+
+    id: int
+    name: str
+    description: str = ""
+    created_at: str | None = None
+
+
+class MemoryStats(BaseModel):
+    external_store: ExternalStoreStats
+    context_budget: ContextBudgetStats
+    skills: list[SkillRef]
+    user_facts: list[UserFact]
+    compactions: list[Compaction]

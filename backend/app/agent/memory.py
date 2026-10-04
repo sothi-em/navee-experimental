@@ -37,7 +37,7 @@ class SkillStore:
         )
 
     def list_skills(self) -> list[dict]:
-        return self.skills.all()
+        return [dict(doc, doc_id=doc.doc_id) for doc in self.skills]
 
 
 class VectorRecall:
