@@ -11,7 +11,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { api, type Compaction, type Message, type User, type UserFact } from "../api/client";
+import { api, type Compaction, type Message, type Skill, type User, type UserFact } from "../api/client";
 import { cn } from "../utils/cn";
 
 type Section = "users" | "skills";
@@ -244,7 +244,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         {/* Right content */}
         <div className="flex-1 min-w-0 flex flex-col">
           {section === "skills" ? (
-            <div className={cn("flex-1", EMPTY)}>No skills yet.</div>
+            <SkillsSection busy={busy} error={error} setError={setError} run={run} />
           ) : selected ? (
             <>
               <div className="h-10 px-4 flex items-center gap-2 border-b border-zinc-200">
@@ -741,5 +741,283 @@ function HistoryTab({ items }: { items: Message[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function SkillsSection({
+  busy,
+  error,
+  setError,
+  run,
+}: {
+  busy: boolean;
+  error: string | null;
+  setError: (e: string | null) => void;
+  run: (fn: () => Promise<void>) => void;
+}) {
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [viewingId, setViewingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftContent, setDraftContent] = useState("");
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+
+  const loadSkills = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setSkills(await api.listSkills());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load skills");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // The section unmounts when switching away, so mount = fresh load.
+  useEffect(() => {
+    void loadSkills();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startEdit = (s: Skill) => {
+    setEditingId(s.id);
+    setDraftName(s.name);
+    setDraftDescription(s.description);
+    setDraftContent(s.content);
+    setViewingId(null);
+    setConfirmId(null);
+  };
+
+  const commitEdit = () =>
+    run(async () => {
+      if (editingId === null || !draftName.trim()) return;
+      await api.updateSkill(
+        editingId,
+        draftName.trim(),
+        draftDescription.trim(),
+        draftContent
+      );
+      setEditingId(null);
+      await loadSkills();
+    });
+
+  const removeSkill = (id: number) =>
+    run(async () => {
+      await api.deleteSkill(id);
+      setConfirmId(null);
+      await loadSkills();
+    });
+
+  const clearAll = () =>
+    run(async () => {
+      await api.clearSkills();
+      setConfirmClearAll(false);
+      setSkills([]);
+    });
+
+  return (
+    <>
+      <div className="h-10 px-4 flex items-center justify-between border-b border-zinc-200">
+        <span className="text-xs font-medium text-zinc-700">Global skills</span>
+        {skills.length > 0 &&
+          (confirmClearAll ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-zinc-500">
+                Delete all {skills.length} skills?
+              </span>
+              <button type="button" onClick={clearAll} disabled={busy} className={DANGER_BTN}>
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(false)}
+                className={GHOST_BTN}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmClearAll(true)}
+              disabled={busy}
+              className={GHOST_BTN}
+            >
+              Clear all
+            </button>
+          ))}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {error && (
+          <div className="mx-4 mt-2 px-2 py-1 text-[11px] text-red-600 bg-red-50 rounded-md">
+            {error}
+          </div>
+        )}
+        {loading ? (
+          <div className={EMPTY}>Loading…</div>
+        ) : skills.length === 0 ? (
+          <div className={EMPTY}>No skills yet.</div>
+        ) : (
+          <div className="divide-y divide-zinc-100">
+            {skills.map((s) => {
+              if (confirmId === s.id) {
+                return (
+                  <div key={s.id} className="flex items-center gap-2 px-4 py-2">
+                    <div className="flex-1 text-xs text-zinc-600">
+                      Delete skill "{s.name}"?
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(s.id)}
+                      disabled={busy}
+                      className={DANGER_BTN}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(null)}
+                      className={GHOST_BTN}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                );
+              }
+              if (editingId === s.id) {
+                return (
+                  <div key={s.id} className="px-4 py-2 space-y-1.5">
+                    <div className="flex gap-1.5">
+                      <div className="flex-1">
+                        <label
+                          htmlFor="skill-name"
+                          className="block text-[11px] text-zinc-500 mb-0.5"
+                        >
+                          Name
+                        </label>
+                        <input
+                          id="skill-name"
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          placeholder="name"
+                          className="w-full px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label
+                          htmlFor="skill-description"
+                          className="block text-[11px] text-zinc-500 mb-0.5"
+                        >
+                          Description
+                        </label>
+                        <input
+                          id="skill-description"
+                          value={draftDescription}
+                          onChange={(e) => setDraftDescription(e.target.value)}
+                          placeholder="description"
+                          className="w-full px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                      </div>
+                    </div>
+                    <label
+                      htmlFor="skill-content"
+                      className="block text-[11px] text-zinc-500 mb-0.5"
+                    >
+                      Content
+                    </label>
+                    <textarea
+                      id="skill-content"
+                      value={draftContent}
+                      onChange={(e) => setDraftContent(e.target.value)}
+                      placeholder="skill content"
+                      rows={6}
+                      className="w-full px-2 py-1 text-xs font-mono border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        className={GHOST_BTN}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={commitEdit}
+                        disabled={busy || !draftName.trim()}
+                        className="px-2 py-1 text-xs rounded-md bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              const viewing = viewingId === s.id;
+              return (
+                <div key={s.id} className="px-4 py-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-zinc-700 truncate">{s.name}</p>
+                      <p className="text-[11px] text-zinc-500 truncate">
+                        {s.description || "—"}
+                      </p>
+                      {viewing && (
+                        <pre className="mt-1.5 text-[11px] text-zinc-600 whitespace-pre-wrap break-words bg-zinc-50 rounded-md p-2 max-h-40 overflow-y-auto">
+                          {s.content}
+                        </pre>
+                      )}
+                      <div className="mt-0.5 text-[11px] text-zinc-400">{s.created_at}</div>
+                    </div>
+                    {viewing ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewingId(null)}
+                        aria-label="Close"
+                        className={ROW_BTN}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setViewingId(s.id)}
+                          aria-label="View skill"
+                          className={ROW_BTN}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(s)}
+                          aria-label="Edit skill"
+                          className={ROW_BTN}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmId(s.id)}
+                          aria-label="Delete skill"
+                          className={ROW_BTN}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

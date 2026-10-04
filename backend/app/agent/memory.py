@@ -41,6 +41,36 @@ class SkillStore:
         with db_lock():
             return [dict(doc, doc_id=doc.doc_id) for doc in self.skills]
 
+    def get_skill(self, doc_id: int) -> dict | None:
+        with db_lock():
+            doc = self.skills.get(doc_id=doc_id)
+            return dict(doc, doc_id=doc.doc_id) if doc is not None else None
+
+    def update_skill(
+        self, doc_id: int, name: str, description: str, content: str
+    ) -> bool:
+        with db_lock():
+            return bool(
+                self.skills.update(
+                    {
+                        "name": name,
+                        "description": description,
+                        "content": content,
+                    },
+                    doc_ids=[doc_id],
+                )
+            )
+
+    def delete_skill(self, doc_id: int) -> bool:
+        with db_lock():
+            return len(self.skills.remove(doc_ids=[doc_id])) > 0
+
+    def clear_skills(self) -> int:
+        with db_lock():
+            deleted = len(self.skills)
+            self.skills.truncate()
+            return deleted
+
 
 class VectorRecall:
     """Flat-file ChromaDB index for semantic recall. Optional and degradable."""

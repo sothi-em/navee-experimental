@@ -37,6 +37,14 @@ export interface SkillRef {
   created_at: string | null;
 }
 
+export interface Skill {
+  id: number;
+  name: string;
+  description: string;
+  content: string;
+  created_at: string | null;
+}
+
 export interface Compaction {
   id: number;
   session_id: number;
@@ -251,4 +259,13 @@ export const api = {
     request<Message[]>(`/api/users/${userId}/history`),
   clearUserHistory: (userId: number) =>
     request<{ deleted: number }>(`/api/users/${userId}/history`, { method: "DELETE" }),
+  listSkills: () => request<Skill[]>("/api/skills"),
+  updateSkill: (id: number, name: string, description: string, content: string) =>
+    request<Skill>(`/api/skills/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name, description, content }),
+    }),
+  deleteSkill: (id: number) =>
+    request<{ deleted: boolean }>(`/api/skills/${id}`, { method: "DELETE" }),
+  clearSkills: () => request<{ deleted: number }>("/api/skills", { method: "DELETE" }),
 };

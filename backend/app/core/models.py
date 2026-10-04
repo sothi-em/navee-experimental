@@ -107,6 +107,12 @@ class Skill(BaseModel):
     created_at: str | None = None
 
 
+class SkillUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str = ""
+    content: str = ""
+
+
 class Compaction(BaseModel):
     id: int
     session_id: int
