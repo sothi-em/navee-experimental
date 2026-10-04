@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { Panda, Loader2, Send, Wrench } from "lucide-react";
 import { api, streamMessage, StreamError, type ToolEvent } from "../api/client";
 
@@ -191,7 +193,7 @@ export function ChatPanel({
               ))}
               {m.content && (
                 <div className="prose prose-sm dark:prose-invert max-w-none text-foreground">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{m.content}</ReactMarkdown>
                   {m.streaming && (
                     <span className="inline-block w-2 h-4 ml-0.5 bg-indigo-400 align-text-bottom animate-pulse" />
                   )}
@@ -216,7 +218,7 @@ export function ChatPanel({
 
       <div className="p-3 border-t border-border">
         <div className="flex gap-2">
-          <input
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -227,7 +229,15 @@ export function ChatPanel({
             }}
             placeholder="Message the agent…"
             disabled={streaming}
-            className="flex-1 px-3 py-2 rounded-md border border-border bg-muted text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            rows={1}
+            className="flex-1 px-3 py-2 rounded-md border border-border bg-muted text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 resize-none"
+            style={{ minHeight: "38px", maxHeight: "120px" }}
+            ref={(el) => {
+              if (el) {
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 120) + "px";
+              }
+            }}
           />
           <button
             type="button"
