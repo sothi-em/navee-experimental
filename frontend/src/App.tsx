@@ -5,6 +5,7 @@ import { TopBar } from "./components/TopBar";
 import { ThreadRail } from "./components/ThreadRail";
 import { ChatPanel } from "./components/ChatPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
+import { applyTheme, followSystemTheme, getInitialTheme } from "./utils/appearance";
 
 const SESSION_KEY = "navee.sessionId";
 
@@ -39,6 +40,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Apply the persisted (or system) theme on mount and keep following the OS
+  // preference until the user makes an explicit choice in Settings.
+  useEffect(() => {
+    applyTheme(getInitialTheme());
+    return followSystemTheme();
   }, []);
 
   const selectSession = (id: number) => {
@@ -120,18 +128,18 @@ export default function App() {
                   <button
                     type="button"
                     onClick={createConversation}
-                    className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 transition-colors"
+                    className="rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
                   >
                     Start a conversation
                   </button>
                 </div>
               ) : (
-                <div className="h-full grid place-items-center text-sm text-zinc-400">
+                <div className="h-full grid place-items-center text-sm text-muted-foreground">
                   Loading…
                 </div>
               )}
             </Panel>
-            <PanelResizeHandle className="w-1 bg-zinc-200 hover:bg-indigo-500/50 transition-colors cursor-col-resize" />
+            <PanelResizeHandle className="w-1 bg-border hover:bg-indigo-500/50 transition-colors cursor-col-resize" />
             <Panel defaultSize={65} minSize={25} className="h-full">
               <MemoryPanel userId={userId} sessionId={sessionId} tick={memoryTick} />
             </Panel>

@@ -4,8 +4,11 @@ import {
   Check,
   Eye,
   Globe,
+  Moon,
+  Palette,
   Pencil,
   Plus,
+  Sun,
   Trash2,
   Users,
   X,
@@ -13,14 +16,16 @@ import {
 } from "lucide-react";
 import { api, type Compaction, type Message, type Skill, type User, type UserFact } from "../api/client";
 import { cn } from "../utils/cn";
+import { applyFontScale, applyTheme, getInitialTheme, getStoredFontScale, FONT_SCALE_MAX, FONT_SCALE_MIN, type Theme } from "../utils/appearance";
 
-type Section = "users" | "skills";
+type Section = "users" | "skills" | "appearance";
 type DetailTab = "management" | "compactions" | "facts" | "history";
 type ClearKind = "compactions" | "facts" | "history";
 
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "users", label: "Users", icon: Users },
   { id: "skills", label: "Skills", icon: Globe },
+  { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
@@ -31,12 +36,12 @@ const DETAIL_TABS: { id: DetailTab; label: string }[] = [
 ];
 
 const ROW_BTN =
-  "p-1 rounded hover:bg-zinc-200 transition-colors text-zinc-400 hover:text-zinc-600";
+  "p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground";
 const DANGER_BTN =
-  "px-2 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-40";
+  "px-2 py-1 text-xs rounded-md bg-destructive text-white hover:bg-destructive/90 disabled:opacity-40";
 const GHOST_BTN =
-  "px-2 py-1 text-xs rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 disabled:opacity-40";
-const EMPTY = "grid place-items-center h-full text-xs text-zinc-400";
+  "px-2 py-1 text-xs rounded-md border border-border text-foreground hover:bg-muted disabled:opacity-40";
+const EMPTY = "grid place-items-center h-full text-xs text-muted-foreground";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [section, setSection] = useState<Section>("users");
@@ -204,13 +209,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       onMouseDown={onClose}
     >
       <div
-        className="w-[720px] h-[480px] bg-white rounded-lg shadow-xl flex overflow-hidden"
+        className="w-[720px] h-[480px] bg-background rounded-lg shadow-xl flex overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Left rail */}
-        <div className="w-44 shrink-0 border-r border-zinc-200 flex flex-col p-2 gap-1">
+        <div className="w-44 shrink-0 border-r border-border flex flex-col p-2 gap-1">
           <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-xs font-semibold text-zinc-700">Settings</span>
+            <span className="text-xs font-semibold text-foreground">Settings</span>
             <button
               type="button"
               onClick={onClose}
@@ -231,8 +236,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               className={cn(
                 "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors",
                 section === s.id
-                  ? "bg-indigo-50 text-indigo-600 font-medium"
-                  : "text-zinc-600 hover:bg-zinc-50"
+                  ? "bg-indigo-50 text-indigo-600 font-medium dark:bg-indigo-500/15 dark:text-indigo-300"
+                  : "text-foreground hover:bg-muted"
               )}
             >
               <s.icon className="w-3.5 h-3.5" />
@@ -245,9 +250,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         <div className="flex-1 min-w-0 flex flex-col">
           {section === "skills" ? (
             <SkillsSection busy={busy} error={error} setError={setError} run={run} />
+          ) : section === "appearance" ? (
+            <AppearanceSection />
           ) : selected ? (
             <>
-              <div className="h-10 px-4 flex items-center gap-2 border-b border-zinc-200">
+              <div className="h-10 px-4 flex items-center gap-2 border-b border-border">
                 <button
                   type="button"
                   onClick={() => setSelectedId(null)}
@@ -256,12 +263,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-xs font-medium text-zinc-700">{selected.username}</span>
+                <span className="text-xs font-medium text-foreground">{selected.username}</span>
                 {selected.display_name && (
-                  <span className="text-[11px] text-zinc-400">{selected.display_name}</span>
+                  <span className="text-[0.6875rem] text-muted-foreground">{selected.display_name}</span>
                 )}
               </div>
-              <div className="flex gap-1 px-4 pt-2 border-b border-zinc-200">
+              <div className="flex gap-1 px-4 pt-2 border-b border-border">
                 {DETAIL_TABS.map((t) => (
                   <button
                     key={t.id}
@@ -270,8 +277,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     className={cn(
                       "px-2.5 py-1.5 text-xs rounded-t-md border-b-2 transition-colors",
                       tab === t.id
-                        ? "border-indigo-500 text-indigo-600 font-medium"
-                        : "border-transparent text-zinc-500 hover:text-zinc-700"
+                        ? "border-indigo-500 text-indigo-600 font-medium dark:text-indigo-300"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {t.label}
@@ -280,7 +287,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {error && (
-                  <div className="mx-4 mt-2 px-2 py-1 text-[11px] text-red-600 bg-red-50 rounded-md">
+                  <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
                     {error}
                   </div>
                 )}
@@ -308,8 +315,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </>
           ) : (
             <>
-              <div className="h-10 px-4 flex items-center justify-between border-b border-zinc-200">
-                <span className="text-xs font-medium text-zinc-700">Users</span>
+              <div className="h-10 px-4 flex items-center justify-between border-b border-border">
+                <span className="text-xs font-medium text-foreground">Users</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     value={newName}
@@ -318,7 +325,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                       if (e.key === "Enter") void addUser();
                     }}
                     placeholder="username"
-                    className="w-32 px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-32 px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                   />
                   <button
                     type="button"
@@ -333,7 +340,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {error && (
-                  <div className="mx-4 mt-2 px-2 py-1 text-[11px] text-red-600 bg-red-50 rounded-md">
+                  <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
                     {error}
                   </div>
                 )}
@@ -348,22 +355,22 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                       return (
                         <div
                           key={u.id}
-                          className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100"
+                          className="flex items-center gap-2 px-4 py-2 border-b border-border"
                         >
-                          <div className="w-6 h-6 rounded-full bg-zinc-100 grid place-items-center text-[10px] font-medium text-zinc-500">
+                          <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-[0.625rem] font-medium text-muted-foreground">
                             {u.username.slice(0, 1).toUpperCase()}
                           </div>
                           <input
                             value={draftName}
                             onChange={(e) => setDraftName(e.target.value)}
-                            className="flex-1 px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            className="flex-1 px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                             autoFocus
                           />
                           <input
                             value={draftDisplay}
                             onChange={(e) => setDraftDisplay(e.target.value)}
                             placeholder="display name"
-                            className="w-40 px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            className="w-40 px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                           />
                           <button
                             type="button"
@@ -389,11 +396,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                       return (
                         <div
                           key={u.id}
-                          className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100"
+                          className="flex items-center gap-2 px-4 py-2 border-b border-border"
                         >
                           <div className="flex-1">
-                            <div className="text-xs font-medium text-zinc-700">{u.username}</div>
-                            <div className="text-[11px] text-zinc-400">
+                            <div className="text-xs font-medium text-foreground">{u.username}</div>
+                            <div className="text-[0.6875rem] text-muted-foreground">
                               Delete this user and all their data?
                             </div>
                           </div>
@@ -418,23 +425,23 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     return (
                       <div
                         key={u.id}
-                        className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100 hover:bg-zinc-50 cursor-pointer"
+                        className="flex items-center gap-2 px-4 py-2 border-b border-border hover:bg-muted cursor-pointer"
                         onClick={() => setSelectedId(u.id)}
                       >
-                        <div className="w-6 h-6 rounded-full bg-zinc-100 grid place-items-center text-[10px] font-medium text-zinc-500">
+                        <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-[0.625rem] font-medium text-muted-foreground">
                           {u.username.slice(0, 1).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-zinc-700 truncate">
+                          <div className="text-xs font-medium text-foreground truncate">
                             {u.username}
                             {isDefault && (
-                              <span className="ml-1.5 text-[10px] font-normal text-zinc-400">
+                              <span className="ml-1.5 text-[0.625rem] font-normal text-muted-foreground">
                                 default
                               </span>
                             )}
                           </div>
                           {u.display_name && (
-                            <div className="text-[11px] text-zinc-400 truncate">
+                            <div className="text-[0.6875rem] text-muted-foreground truncate">
                               {u.display_name}
                             </div>
                           )}
@@ -501,23 +508,23 @@ function ManagementTab({
   ];
   return (
     <div className="p-4 space-y-2">
-      <p className="text-[11px] text-zinc-400">
+      <p className="text-[0.6875rem] text-muted-foreground">
         Clear all of this user&apos;s data in a category. This cannot be undone.
       </p>
       {rows.map((r) => (
         <div
           key={r.kind}
-          className="flex items-center gap-2 px-3 py-2 border border-zinc-200 rounded-md"
+          className="flex items-center gap-2 px-3 py-2 border border-border rounded-md"
         >
           <div className="flex-1">
-            <div className="text-xs font-medium text-zinc-700">{r.label}</div>
-            <div className="text-[11px] text-zinc-400">
+            <div className="text-xs font-medium text-foreground">{r.label}</div>
+            <div className="text-[0.6875rem] text-muted-foreground">
               {r.count} {r.noun}
             </div>
           </div>
           {confirm === r.kind ? (
             <>
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[0.6875rem] text-muted-foreground">
                 Clear all {r.count} {r.noun}?
               </span>
               <button
@@ -566,12 +573,12 @@ function CompactionsTab({
     return <div className={EMPTY}>No compactions yet.</div>;
   }
   return (
-    <div className="divide-y divide-zinc-100">
+    <div className="divide-y divide-border">
       {items.map((c) => {
         if (confirmId === c.id) {
           return (
             <div key={c.id} className="flex items-center gap-2 px-4 py-2">
-              <div className="flex-1 text-xs text-zinc-600">Delete this compaction?</div>
+              <div className="flex-1 text-xs text-foreground">Delete this compaction?</div>
               <button
                 type="button"
                 onClick={() => onDelete(c.id)}
@@ -591,14 +598,14 @@ function CompactionsTab({
           <div key={c.id} className="px-4 py-2">
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
-                <p className={cn("text-xs text-zinc-700", !viewing && "truncate")}>{c.summary}</p>
+                <p className={cn("text-xs text-foreground", !viewing && "truncate")}>{c.summary}</p>
                 {viewing ? (
-                  <div className="mt-1 text-[11px] text-zinc-400">
+                  <div className="mt-1 text-[0.6875rem] text-muted-foreground">
                     {c.messages_compacted} messages · {c.tokens_before ?? "?"}→
                     {c.tokens_after ?? "?"} tokens · session #{c.session_id} · {c.created_at}
                   </div>
                 ) : (
-                  <div className="mt-0.5 text-[11px] text-zinc-400">{c.created_at}</div>
+                  <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{c.created_at}</div>
                 )}
               </div>
               {viewing ? (
@@ -653,12 +660,12 @@ function FactsTab({
     return <div className={EMPTY}>No facts yet.</div>;
   }
   return (
-    <div className="divide-y divide-zinc-100">
+    <div className="divide-y divide-border">
       {items.map((f) => {
         if (confirmId === f.id) {
           return (
             <div key={f.id} className="flex items-center gap-2 px-4 py-2">
-              <div className="flex-1 text-xs text-zinc-600">Delete this fact?</div>
+              <div className="flex-1 text-xs text-foreground">Delete this fact?</div>
               <button
                 type="button"
                 onClick={() => onDelete(f.id)}
@@ -678,8 +685,8 @@ function FactsTab({
           <div key={f.id} className="px-4 py-2">
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
-                <p className={cn("text-xs text-zinc-700", !viewing && "truncate")}>{f.fact}</p>
-                <div className="mt-0.5 text-[11px] text-zinc-400">{f.created_at}</div>
+                <p className={cn("text-xs text-foreground", !viewing && "truncate")}>{f.fact}</p>
+                <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{f.created_at}</div>
               </div>
               {viewing ? (
                 <button
@@ -729,15 +736,15 @@ function HistoryTab({ items }: { items: Message[] }) {
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-[11px] font-medium",
-                m.role === "user" ? "text-indigo-600" : "text-zinc-500"
+                "text-[0.6875rem] font-medium",
+                m.role === "user" ? "text-indigo-600 dark:text-indigo-400" : "text-muted-foreground"
               )}
             >
               {m.role}
             </span>
-            <span className="text-[10px] text-zinc-400">{m.created_at}</span>
+            <span className="text-[0.625rem] text-muted-foreground">{m.created_at}</span>
           </div>
-          <p className="text-xs text-zinc-700 whitespace-pre-wrap break-words">{m.content}</p>
+          <p className="text-xs text-foreground whitespace-pre-wrap break-words">{m.content}</p>
         </div>
       ))}
     </div>
@@ -821,12 +828,12 @@ function SkillsSection({
 
   return (
     <>
-      <div className="h-10 px-4 flex items-center justify-between border-b border-zinc-200">
-        <span className="text-xs font-medium text-zinc-700">Global skills</span>
+      <div className="h-10 px-4 flex items-center justify-between border-b border-border">
+        <span className="text-xs font-medium text-foreground">Global skills</span>
         {skills.length > 0 &&
           (confirmClearAll ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[0.6875rem] text-muted-foreground">
                 Delete all {skills.length} skills?
               </span>
               <button type="button" onClick={clearAll} disabled={busy} className={DANGER_BTN}>
@@ -853,7 +860,7 @@ function SkillsSection({
       </div>
       <div className="flex-1 overflow-y-auto">
         {error && (
-          <div className="mx-4 mt-2 px-2 py-1 text-[11px] text-red-600 bg-red-50 rounded-md">
+          <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
             {error}
           </div>
         )}
@@ -862,12 +869,12 @@ function SkillsSection({
         ) : skills.length === 0 ? (
           <div className={EMPTY}>No skills yet.</div>
         ) : (
-          <div className="divide-y divide-zinc-100">
+          <div className="divide-y divide-border">
             {skills.map((s) => {
               if (confirmId === s.id) {
                 return (
                   <div key={s.id} className="flex items-center gap-2 px-4 py-2">
-                    <div className="flex-1 text-xs text-zinc-600">
+                    <div className="flex-1 text-xs text-foreground">
                       Delete skill "{s.name}"?
                     </div>
                     <button
@@ -895,7 +902,7 @@ function SkillsSection({
                       <div className="flex-1">
                         <label
                           htmlFor="skill-name"
-                          className="block text-[11px] text-zinc-500 mb-0.5"
+                          className="block text-[0.6875rem] text-muted-foreground mb-0.5"
                         >
                           Name
                         </label>
@@ -904,14 +911,14 @@ function SkillsSection({
                           value={draftName}
                           onChange={(e) => setDraftName(e.target.value)}
                           placeholder="name"
-                          className="w-full px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          className="w-full px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                           autoFocus
                         />
                       </div>
                       <div className="flex-1">
                         <label
                           htmlFor="skill-description"
-                          className="block text-[11px] text-zinc-500 mb-0.5"
+                          className="block text-[0.6875rem] text-muted-foreground mb-0.5"
                         >
                           Description
                         </label>
@@ -920,13 +927,13 @@ function SkillsSection({
                           value={draftDescription}
                           onChange={(e) => setDraftDescription(e.target.value)}
                           placeholder="description"
-                          className="w-full px-2 py-1 text-xs border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          className="w-full px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                         />
                       </div>
                     </div>
                     <label
                       htmlFor="skill-content"
-                      className="block text-[11px] text-zinc-500 mb-0.5"
+                      className="block text-[0.6875rem] text-muted-foreground mb-0.5"
                     >
                       Content
                     </label>
@@ -936,7 +943,7 @@ function SkillsSection({
                       onChange={(e) => setDraftContent(e.target.value)}
                       placeholder="skill content"
                       rows={6}
-                      className="w-full px-2 py-1 text-xs font-mono border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y"
+                      className="w-full px-2 py-1 text-xs font-mono border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y"
                     />
                     <div className="flex justify-end gap-1.5">
                       <button
@@ -963,16 +970,16 @@ function SkillsSection({
                 <div key={s.id} className="px-4 py-2">
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-700 truncate">{s.name}</p>
-                      <p className="text-[11px] text-zinc-500 truncate">
+                      <p className="text-xs text-foreground truncate">{s.name}</p>
+                      <p className="text-[0.6875rem] text-muted-foreground truncate">
                         {s.description || "—"}
                       </p>
                       {viewing && (
-                        <pre className="mt-1.5 text-[11px] text-zinc-600 whitespace-pre-wrap break-words bg-zinc-50 rounded-md p-2 max-h-40 overflow-y-auto">
+                        <pre className="mt-1.5 text-[0.6875rem] text-foreground whitespace-pre-wrap break-words bg-muted rounded-md p-2 max-h-40 overflow-y-auto">
                           {s.content}
                         </pre>
                       )}
-                      <div className="mt-0.5 text-[11px] text-zinc-400">{s.created_at}</div>
+                      <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{s.created_at}</div>
                     </div>
                     {viewing ? (
                       <button
@@ -1019,5 +1026,79 @@ function SkillsSection({
         )}
       </div>
     </>
+  );
+}
+
+function AppearanceSection() {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [fontScale, setFontScale] = useState<number>(getStoredFontScale);
+
+  const pickTheme = (t: Theme) => {
+    setTheme(t);
+    applyTheme(t);
+    localStorage.setItem("navee.theme", t);
+  };
+
+  const pickFontScale = (n: number) => {
+    setFontScale(n);
+    applyFontScale(n);
+    localStorage.setItem("navee.fontScale", String(n));
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="h-10 px-4 flex items-center border-b border-border">
+        <span className="text-xs font-medium text-foreground">Appearance</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="font-scale" className="text-xs text-foreground">
+              Font size
+            </label>
+            <span className="text-xs text-muted-foreground">{fontScale}%</span>
+          </div>
+          <input
+            id="font-scale"
+            type="range"
+            min={FONT_SCALE_MIN}
+            max={FONT_SCALE_MAX}
+            step={5}
+            value={fontScale}
+            onChange={(e) => pickFontScale(Number(e.target.value))}
+            className="w-full accent-indigo-500"
+          />
+        </div>
+        <div>
+          <div className="text-xs text-foreground mb-2">Theme</div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => pickTheme("light")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                theme === "light"
+                  ? "bg-indigo-500 text-white border-indigo-500"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" />
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => pickTheme("dark")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                theme === "dark"
+                  ? "bg-indigo-500 text-white border-indigo-500"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5" />
+              Dark
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

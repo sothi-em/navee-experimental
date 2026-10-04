@@ -13,7 +13,7 @@ interface ThreadRailProps {
 }
 
 const ROW_BTN =
-  "p-1 rounded hover:bg-zinc-200 transition-colors text-zinc-400 hover:text-zinc-600";
+  "p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground";
 
 function formatWhen(iso: string | null): string {
   if (!iso) return "";
@@ -55,13 +55,13 @@ export function ThreadRail({
   };
 
   return (
-    <aside className="w-[280px] shrink-0 flex flex-col border-r border-zinc-200 bg-white">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200">
-        <h2 className="text-sm font-semibold text-zinc-800">Conversations</h2>
+    <aside className="w-[280px] shrink-0 flex flex-col border-r border-border bg-background">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Conversations</h2>
         <button
           type="button"
           onClick={onCreate}
-          className="p-1.5 rounded-md hover:bg-zinc-100 transition-colors text-zinc-500"
+          className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
           aria-label="New conversation"
         >
           <Plus className="w-4 h-4" />
@@ -70,7 +70,7 @@ export function ThreadRail({
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {sessions.length === 0 && (
-          <div className="px-3 py-2 text-xs text-zinc-400">No conversations yet.</div>
+          <div className="px-3 py-2 text-xs text-muted-foreground">No conversations yet.</div>
         )}
         {sessions.map((s) => (
           <div
@@ -79,13 +79,13 @@ export function ThreadRail({
             className={cn(
               "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 cursor-pointer",
               s.id === activeId
-                ? "bg-zinc-100 text-zinc-800"
-                : "text-zinc-600 hover:bg-zinc-50"
+                ? "bg-muted text-foreground"
+                : "text-foreground hover:bg-muted"
             )}
           >
             <div className="flex-1 min-w-0">
               {confirmDelete === s.id ? (
-                <div className="text-xs font-medium text-red-600 truncate">
+                <div className="text-xs font-medium text-destructive truncate">
                   Delete this conversation?
                 </div>
               ) : editing === s.id ? (
@@ -99,12 +99,12 @@ export function ThreadRail({
                     if (e.key === "Enter") commitEdit();
                     if (e.key === "Escape") setEditing(null);
                   }}
-                  className="w-full px-1 rounded border border-indigo-500 bg-white text-sm text-zinc-800 focus:outline-none"
+                  className="w-full px-1 rounded border border-indigo-500 bg-background text-sm text-foreground focus:outline-none"
                 />
               ) : (
                 <>
                   <div className="truncate">{s.title || "New conversation"}</div>
-                  <div className="text-[10px] text-zinc-400">{formatWhen(s.created_at)}</div>
+                  <div className="text-[0.625rem] text-muted-foreground">{formatWhen(s.created_at)}</div>
                 </>
               )}
             </div>
@@ -122,7 +122,7 @@ export function ThreadRail({
                     className={ROW_BTN}
                     aria-label="Confirm delete"
                   >
-                    <Check className="w-3.5 h-3.5 text-red-600" />
+                    <Check className="w-3.5 h-3.5 text-destructive" />
                   </button>
                   <button
                     type="button"
