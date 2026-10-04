@@ -173,7 +173,7 @@ export function ChatPanel({
                 <ToolPill key={t.id || j} tool={t} />
               ))}
               {m.content && (
-                <div className="prose prose-sm max-w-none text-foreground">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-foreground">
                   <ReactMarkdown>{m.content}</ReactMarkdown>
                   {m.streaming && (
                     <span className="inline-block w-2 h-4 ml-0.5 bg-indigo-400 align-text-bottom animate-pulse" />
