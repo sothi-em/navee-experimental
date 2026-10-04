@@ -182,7 +182,7 @@ def test_stream_injects_user_facts_summary(client: TestClient, monkeypatch) -> N
             finish_reason=finish)])
 
     async def fake_stream(self, messages, tools=None):
-        seen["first"] = messages[0]
+        seen["messages"] = list(messages)
         yield _chunk(content="ok", finish="stop")
 
     monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
@@ -190,8 +190,9 @@ def test_stream_injects_user_facts_summary(client: TestClient, monkeypatch) -> N
                        json={"content": "hi"}) as resp:
         assert resp.status_code == 200
         "".join(resp.iter_text())
-    assert seen["first"]["role"] == "system"
-    assert "Erin is a backend engineer." in seen["first"]["content"]
+    assert seen["messages"][0]["role"] == "system"
+    assert seen["messages"][0]["content"] == settings.base_system_prompt
+    assert "Erin is a backend engineer." in seen["messages"][1]["content"]
     # The transcript still contains only the real turns.
     r = client.get(f"/api/chat/sessions/{session_id}/messages")
     assert [m["role"] for m in r.json()] == ["user", "assistant"]
@@ -216,7 +217,7 @@ def test_stream_injects_skills_system(client: TestClient, monkeypatch) -> None:
             finish_reason=finish)])
 
     async def fake_stream(self, messages, tools=None):
-        seen["first"] = messages[0]
+        seen["messages"] = list(messages)
         yield _chunk(content="ok", finish="stop")
 
     monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
@@ -224,11 +225,11 @@ def test_stream_injects_skills_system(client: TestClient, monkeypatch) -> None:
                        json={"content": "hi"}) as resp:
         assert resp.status_code == 200
         "".join(resp.iter_text())
-    assert seen["first"]["role"] == "system"
-    assert "my_skill" in seen["first"]["content"]
-    assert "does things" in seen["first"]["content"]
+    assert seen["messages"][0]["content"] == settings.base_system_prompt
+    assert "my_skill" in seen["messages"][1]["content"]
+    assert "does things" in seen["messages"][1]["content"]
     # Skill content is only fetched via the get_skill tool, never in the prompt.
-    assert "the complete skill body" not in seen["first"]["content"]
+    assert "the complete skill body" not in seen["messages"][1]["content"]
 
 
 def test_send_message_injects_skills_system(client: TestClient, monkeypatch) -> None:
@@ -296,7 +297,7 @@ def test_stream_get_skill_tool(client: TestClient, monkeypatch) -> None:
     assert "tool content body" in tool_frame
 
 
-def test_stream_no_skills_no_system(client: TestClient, monkeypatch) -> None:
+def test_stream_base_prompt_only(client: TestClient, monkeypatch) -> None:
     r = client.post("/api/users", json={"username": "ivan"})
     user_id = r.json()["id"]
     r = client.post("/api/chat/sessions", json={"user_id": user_id})
@@ -312,7 +313,7 @@ def test_stream_no_skills_no_system(client: TestClient, monkeypatch) -> None:
             finish_reason=finish)])
 
     async def fake_stream(self, messages, tools=None):
-        seen["first"] = messages[0]
+        seen["messages"] = list(messages)
         yield _chunk(content="ok", finish="stop")
 
     monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
@@ -320,7 +321,8 @@ def test_stream_no_skills_no_system(client: TestClient, monkeypatch) -> None:
                        json={"content": "hi"}) as resp:
         assert resp.status_code == 200
         "".join(resp.iter_text())
-    assert seen["first"]["role"] == "user"
+    assert seen["messages"][0]["content"] == settings.base_system_prompt
+    assert seen["messages"][1]["role"] == "user"
 
 
 def test_memory_stats(client: TestClient) -> None:
@@ -354,7 +356,7 @@ def test_memory_stats(client: TestClient) -> None:
     b = body["context_budget"]
     assert b["total"] == settings.converse_token_budget
     assert b["current_chat"] > 0 and b["compaction"] > 0 and b["skills"] > 0
-    assert b["user_facts"] == 0 and b["system_prompt"] == 0
+    assert b["user_facts"] == 0 and b["system_prompt"] > 0
     assert [s["name"] for s in body["skills"]] == ["greeting"]
     assert "content" not in body["skills"][0]
     assert [f["fact"] for f in body["user_facts"]] == ["likes tea"]

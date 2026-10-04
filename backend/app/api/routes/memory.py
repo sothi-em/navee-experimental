@@ -52,8 +52,8 @@ def memory_stats(user_id: int, session_id: int | None = None) -> dict:
     compactions = list_compactions(session_id) if session_id is not None else []
     latest_summary = compactions[-1]["summary"] if compactions else ""
 
-    # system_prompt is 0 until a real system prompt joins the per-turn envelope;
-    # the injected user-facts system message is counted under user_facts.
+    # system_prompt counts the base system prompt; the injected user-facts
+    # system message is counted under user_facts.
     return {
         "external_store": {
             "vector_recall": _recall.healthy,
@@ -63,7 +63,7 @@ def memory_stats(user_id: int, session_id: int | None = None) -> dict:
         },
         "context_budget": {
             "total": settings.converse_token_budget,
-            "system_prompt": 0,
+            "system_prompt": tokenizer.estimate_tokens(settings.base_system_prompt),
             "compaction": tokenizer.estimate_tokens(latest_summary),
             "current_chat": sum(
                 tokenizer.estimate_tokens(r["content"]) for r in session_rows

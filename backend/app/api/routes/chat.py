@@ -114,7 +114,7 @@ def send_message(session_id: int, payload: MessageIn) -> list[dict]:
         )
         if payload.role == "user":
             get_session_store().set_initial_title(session_id, payload.content)
-            system_parts = []
+            system_parts = [settings.base_system_prompt]
             skills_system = _skills_system()
             if skills_system:
                 system_parts.append(skills_system)
@@ -151,10 +151,11 @@ async def stream_message(session_id: int, payload: ChatStreamIn):
     history = [{"role": r["role"], "content": r["content"]} for r in rows]
     facts_system = _user_facts_system(session_id)
     skills_system = _skills_system()
-    if facts_system:
-        history.insert(0, {"role": "system", "content": facts_system})
     if skills_system:
         history.insert(0, {"role": "system", "content": skills_system})
+    if facts_system:
+        history.insert(0, {"role": "system", "content": facts_system})
+    history.insert(0, {"role": "system", "content": settings.base_system_prompt})
     return EventSourceResponse(_stream_turn(session_id, history))
 
 

@@ -7,6 +7,21 @@ experimental sandbox.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BASE_SYSTEM_PROMPT = (
+    "You are Navee, a helpful assistant.\n\n"
+    "Grounding rules:\n"
+    "- For questions that need factual information, answer strictly from "
+    "facts you are certain of and from tool results given in this "
+    "conversation. Do not pad answers with guesses, assumptions, or "
+    "invented details.\n"
+    "- If you do not have a reliable answer and no tool result covers it, "
+    "say plainly that you don't know (or that you couldn't find it). Do "
+    "not fabricate.\n"
+    "- For casual conversation, opinion, brainstorming, or creative "
+    "requests, reasoning and inference are fine.\n"
+    "- Keep answers concise and directly responsive to what was asked."
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -40,6 +55,9 @@ class Settings(BaseSettings):
     compaction_budget: int = 16384  # cap for the summary of compacted old messages
     skill_budget: int = 8192        # cap for skill references (name + short description)
     user_facts_budget: int = 1024   # cap for the user facts summary
+
+    # Base system prompt prepended to every chat turn (env-overridable).
+    base_system_prompt: str = BASE_SYSTEM_PROMPT
 
 
 settings = Settings()
