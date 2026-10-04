@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.config import settings
-from app.core.tinydb import get_db
+from app.core.tinydb import db_lock, get_db
 
 
 class SkillStore:
@@ -27,17 +27,19 @@ class SkillStore:
         self.skills = self.db.table("skills")
 
     def add_skill(self, name: str, description: str, content: str) -> int:
-        return self.skills.insert(
-            {
-                "name": name,
-                "description": description,
-                "content": content,
-                "created_at": datetime.now(UTC).isoformat(),
-            }
-        )
+        with db_lock():
+            return self.skills.insert(
+                {
+                    "name": name,
+                    "description": description,
+                    "content": content,
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+            )
 
     def list_skills(self) -> list[dict]:
-        return [dict(doc, doc_id=doc.doc_id) for doc in self.skills]
+        with db_lock():
+            return [dict(doc, doc_id=doc.doc_id) for doc in self.skills]
 
 
 class VectorRecall:

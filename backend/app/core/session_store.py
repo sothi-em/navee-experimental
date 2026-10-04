@@ -13,7 +13,7 @@ from tinydb.table import Document
 from app.core.config import settings
 from app.core.database import get_conn
 from app.core.models import TranscriptMessage
-from app.core.tinydb import get_db
+from app.core.tinydb import db_lock, get_db
 
 
 def _now() -> str:
@@ -28,29 +28,33 @@ class SessionStore:
 
     def create(self, user_id: int, title: str | None = None) -> dict:
         """Insert a new session; return the doc plus its id."""
-        doc_id = self.table.insert(
-            {
-                "user_id": user_id,
-                "title": title,
-                "transcript": [],
-                "created_at": _now(),
-                "updated_at": _now(),
-            }
-        )
-        return {"id": doc_id, **self.get(doc_id)}
+        with db_lock():
+            doc_id = self.table.insert(
+                {
+                    "user_id": user_id,
+                    "title": title,
+                    "transcript": [],
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }
+            )
+            return {"id": doc_id, **self.get(doc_id)}
 
     def get(self, session_id: int) -> dict | None:
-        doc = self.table.get(doc_id=session_id)
+        with db_lock():
+            doc = self.table.get(doc_id=session_id)
         if doc is None:
             return None
         return {k: v for k, v in doc.items() if k != "doc_id"}
 
     def exists(self, session_id: int) -> bool:
-        return self.table.get(doc_id=session_id) is not None
+        with db_lock():
+            return self.table.get(doc_id=session_id) is not None
 
     def list_sessions(self, user_id: int | None = None) -> list[dict]:
         """All sessions, newest id first, optionally filtered by user."""
-        docs = self.table.all()
+        with db_lock():
+            docs = self.table.all()
         if user_id is not None:
             docs = [d for d in docs if d.get("user_id") == user_id]
         docs.sort(key=lambda d: d.doc_id, reverse=True)
@@ -58,11 +62,12 @@ class SessionStore:
 
     def set_title(self, session_id: int, title: str) -> None:
         """Rename a session. Raises KeyError if missing."""
-        updated = self.table.update(
-            {"title": title, "updated_at": _now()}, doc_ids=[session_id]
-        )
-        if not updated:
-            raise KeyError(f"session {session_id} not found")
+        with db_lock():
+            updated = self.table.update(
+                {"title": title, "updated_at": _now()}, doc_ids=[session_id]
+            )
+            if not updated:
+                raise KeyError(f"session {session_id} not found")
 
     def set_initial_title(self, session_id: int, content: str) -> None:
         """Title a still-untitled session from its first user message.
@@ -71,15 +76,17 @@ class SessionStore:
         characters with an ellipsis. No-op for a missing session or one that
         already has a title (renamed, or given one at creation).
         """
-        doc = self.table.get(doc_id=session_id)
-        if doc is None or doc.get("title"):
-            return
-        text = " ".join(content.split())
-        title = text if len(text) <= 30 else text[:30].rstrip() + "…"
-        self.table.update({"title": title, "updated_at": _now()}, doc_ids=[session_id])
+        with db_lock():
+            doc = self.table.get(doc_id=session_id)
+            if doc is None or doc.get("title"):
+                return
+            text = " ".join(content.split())
+            title = text if len(text) <= 30 else text[:30].rstrip() + "…"
+            self.table.update({"title": title, "updated_at": _now()}, doc_ids=[session_id])
 
     def get_transcript(self, session_id: int) -> list[dict]:
-        doc = self.table.get(doc_id=session_id)
+        with db_lock():
+            doc = self.table.get(doc_id=session_id)
         return list(doc["transcript"]) if doc else []
 
     def replace_transcript(self, session_id: int, transcript: list[dict]) -> None:
@@ -91,15 +98,17 @@ class SessionStore:
         """
         for m in transcript:
             TranscriptMessage.model_validate(m)
-        updated = self.table.update(
-            {"transcript": transcript, "updated_at": _now()},
-            doc_ids=[session_id],
-        )
-        if not updated:
-            raise KeyError(f"session {session_id} not found")
+        with db_lock():
+            updated = self.table.update(
+                {"transcript": transcript, "updated_at": _now()},
+                doc_ids=[session_id],
+            )
+            if not updated:
+                raise KeyError(f"session {session_id} not found")
 
     def delete(self, session_id: int) -> None:
-        self.table.remove(doc_ids=[session_id])
+        with db_lock():
+            self.table.remove(doc_ids=[session_id])
 
 
 _stores: dict[str, SessionStore] = {}
@@ -130,20 +139,21 @@ def migrate_legacy_sessions() -> None:
             "SELECT id, user_id, title, created_at FROM sessions ORDER BY id"
         ).fetchall()
     store = get_session_store()
-    for row in rows:
-        if not store.exists(row["id"]):
-            store.table.insert(
-                Document(
-                    {
-                        "user_id": row["user_id"],
-                        "title": row["title"],
-                        "transcript": [],
-                        "created_at": row["created_at"] or _now(),
-                        "updated_at": _now(),
-                    },
-                    row["id"],
+    with db_lock():
+        for row in rows:
+            if not store.exists(row["id"]):
+                store.table.insert(
+                    Document(
+                        {
+                            "user_id": row["user_id"],
+                            "title": row["title"],
+                            "transcript": [],
+                            "created_at": row["created_at"] or _now(),
+                            "updated_at": _now(),
+                        },
+                        row["id"],
+                    )
                 )
-            )
     with get_conn() as conn:
         # With foreign_keys ON, DROP TABLE sessions cascades and deletes the
         # legacy messages rows that reference it. The new schema has no FK, so

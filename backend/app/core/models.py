@@ -10,6 +10,11 @@ class UserCreate(BaseModel):
     display_name: str | None = None
 
 
+class UserUpdate(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    display_name: str | None = None
+
+
 class User(BaseModel):
     id: int
     username: str

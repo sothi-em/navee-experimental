@@ -210,3 +210,71 @@ def get_user_facts_summary(user_id: int) -> str | None:
             "SELECT facts_summary FROM users WHERE id = ?", (user_id,)
         ).fetchone()
     return row["facts_summary"] if row else None
+
+
+def _placeholders(ids: list[int]) -> str:
+    return ",".join("?" for _ in ids)
+
+
+def list_compactions_for_sessions(session_ids: list[int]) -> list[dict]:
+    """Compactions across the given sessions, oldest first."""
+    if not session_ids:
+        return []
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM compactions WHERE session_id IN ({_placeholders(session_ids)}) "
+            "ORDER BY id",
+            session_ids,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_compaction(compaction_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM compactions WHERE id = ?", (compaction_id,))
+
+
+def clear_compactions_for_sessions(session_ids: list[int]) -> int:
+    """Hard-delete compactions for the given sessions; returns rows removed."""
+    if not session_ids:
+        return 0
+    with get_conn() as conn:
+        cur = conn.execute(
+            f"DELETE FROM compactions WHERE session_id IN ({_placeholders(session_ids)})",
+            session_ids,
+        )
+        return cur.rowcount
+
+
+def list_messages_for_sessions(session_ids: list[int]) -> list[dict]:
+    """Live (non-deleted) messages across the given sessions, oldest first."""
+    if not session_ids:
+        return []
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM messages WHERE session_id IN ({_placeholders(session_ids)}) "
+            "AND is_deleted = 0 ORDER BY id",
+            session_ids,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def clear_messages_for_sessions(session_ids: list[int]) -> int:
+    """Soft-delete messages for the given sessions (matches session delete);
+    returns rows affected."""
+    if not session_ids:
+        return 0
+    with get_conn() as conn:
+        cur = conn.execute(
+            f"UPDATE messages SET is_deleted = 1, deleted_at = datetime('now') "
+            f"WHERE session_id IN ({_placeholders(session_ids)}) AND is_deleted = 0",
+            session_ids,
+        )
+        return cur.rowcount
+
+
+def clear_user_facts(user_id: int) -> int:
+    """Delete all of a user's facts; returns rows removed."""
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM user_facts WHERE user_id = ?", (user_id,))
+        return cur.rowcount

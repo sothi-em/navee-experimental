@@ -203,6 +203,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, display_name: displayName }),
     }),
+  updateUser: (id: number, username: string, displayName: string | null) =>
+    request<User>(`/api/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ username, display_name: displayName }),
+    }),
+  deleteUser: (id: number) =>
+    request<{ deleted: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
   createSession: (userId: number, title?: string) =>
     request<Session>("/api/chat/sessions", {
       method: "POST",
@@ -228,4 +235,20 @@ export const api = {
     request<MemoryStats>(
       `/api/memory/stats?user_id=${userId}${sessionId !== null ? `&session_id=${sessionId}` : ""}`
     ),
+  listUserCompactions: (userId: number) =>
+    request<Compaction[]>(`/api/users/${userId}/compactions`),
+  clearUserCompactions: (userId: number) =>
+    request<{ deleted: number }>(`/api/users/${userId}/compactions`, { method: "DELETE" }),
+  deleteUserCompaction: (userId: number, id: number) =>
+    request<{ deleted: boolean }>(`/api/users/${userId}/compactions/${id}`, { method: "DELETE" }),
+  listUserFacts: (userId: number) =>
+    request<UserFact[]>(`/api/users/${userId}/facts`),
+  clearUserFacts: (userId: number) =>
+    request<{ deleted: number }>(`/api/users/${userId}/facts`, { method: "DELETE" }),
+  deleteUserFact: (userId: number, id: number) =>
+    request<{ deleted: boolean }>(`/api/users/${userId}/facts/${id}`, { method: "DELETE" }),
+  listUserHistory: (userId: number) =>
+    request<Message[]>(`/api/users/${userId}/history`),
+  clearUserHistory: (userId: number) =>
+    request<{ deleted: number }>(`/api/users/${userId}/history`, { method: "DELETE" }),
 };

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import chat, health, memory, users
+from app.api.routes import chat, health, memory, user_data, users
 from app.core.config import settings
 from app.core.database import init_db, migrate_messages_schema, migrate_users_schema
 from app.core.session_store import migrate_legacy_sessions
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(users.router)
     app.include_router(memory.router)
+    app.include_router(user_data.router)
     app.include_router(chat.router)
     return app
 
