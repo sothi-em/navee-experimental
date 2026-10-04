@@ -15,8 +15,9 @@
             t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           }
           if (t === "dark") document.documentElement.classList.add("dark");
-          var f = parseInt(localStorage.getItem("navee.fontScale") || "100", 10);
-          if (!isNaN(f) && f >= 80 && f <= 140) document.documentElement.style.fontSize = f + "%";
+          var f = localStorage.getItem("navee.fontScale");
+          var s = { sm: 0.875, md: 1, lg: 1.125, xl: 1.25 };
+          if (s[f]) document.documentElement.style.setProperty("--font-scale", String(s[f]));
         } catch (e) {}
       })();
     </script>

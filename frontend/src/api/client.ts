@@ -20,6 +20,7 @@ export interface Message {
   session_id: number;
   role: string;
   content: string;
+  metadata: string | null;
   created_at: string | null;
 }
 

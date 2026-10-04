@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { api, type Session } from "./api/client";
+import { api, type Session, type User } from "./api/client";
 import { TopBar } from "./components/TopBar";
 import { ThreadRail } from "./components/ThreadRail";
 import { ChatPanel } from "./components/ChatPanel";
@@ -8,8 +8,10 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import { applyTheme, followSystemTheme, getInitialTheme } from "./utils/appearance";
 
 const SESSION_KEY = "navee.sessionId";
+const USER_KEY = "navee.userId";
 
 export default function App() {
+  const [users, setUsers] = useState<User[]>([]);
   const [userId, setUserId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -21,17 +23,20 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let users = await api.listUsers();
-      if (users.length === 0) {
-        users = [await api.createUser("local")];
+      let userList = await api.listUsers();
+      if (userList.length === 0) {
+        userList = [await api.createUser("local")];
       }
-      const uid = users[0].id;
+      const storedUid = Number(localStorage.getItem(USER_KEY));
+      const uid = userList.some((u) => u.id === storedUid) ? storedUid : userList[0].id;
+      localStorage.setItem(USER_KEY, String(uid));
       const list = await api.listSessions(uid);
       const stored = Number(localStorage.getItem(SESSION_KEY));
       const active = list.some((s) => s.id === stored) ? stored : (list[0]?.id ?? null);
       if (active !== null) localStorage.setItem(SESSION_KEY, String(active));
       else localStorage.removeItem(SESSION_KEY);
       if (!cancelled) {
+        setUsers(userList);
         setUserId(uid);
         setSessions(list);
         setSessionId(active);
@@ -48,6 +53,24 @@ export default function App() {
     applyTheme(getInitialTheme());
     return followSystemTheme();
   }, []);
+
+  const switchUser = async (newUserId: number) => {
+    setUserId(newUserId);
+    localStorage.setItem(USER_KEY, String(newUserId));
+    setSessionId(null);
+    localStorage.removeItem(SESSION_KEY);
+    try {
+      const list = await api.listSessions(newUserId);
+      setSessions(list);
+      const active = list[0]?.id ?? null;
+      if (active !== null) {
+        setSessionId(active);
+        localStorage.setItem(SESSION_KEY, String(active));
+      }
+    } catch (e) {
+      console.error("switchUser failed", e);
+    }
+  };
 
   const selectSession = (id: number) => {
     setSessionId(id);
@@ -108,7 +131,7 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
-      <TopBar />
+      <TopBar users={users} currentUserId={userId} onSwitchUser={switchUser} />
       <div className="flex flex-1 overflow-hidden">
         <ThreadRail
           sessions={sessions}

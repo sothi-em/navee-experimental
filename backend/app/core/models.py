@@ -60,6 +60,7 @@ class Message(BaseModel):
     session_id: int
     role: str
     content: str
+    metadata: str | None = None
     created_at: str | None = None
 
 

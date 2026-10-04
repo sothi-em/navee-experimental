@@ -1,8 +1,14 @@
 export type Theme = "light" | "dark";
+export type FontScale = "sm" | "md" | "lg" | "xl";
 
-export const FONT_SCALE_MIN = 80;
-export const FONT_SCALE_MAX = 140;
-export const FONT_SCALE_DEFAULT = 100;
+export const FONT_SCALE_DEFAULT: FontScale = "md";
+
+export const FONT_SCALES: { id: FontScale; label: string; value: number }[] = [
+  { id: "sm", label: "Small", value: 0.875 },
+  { id: "md", label: "Medium", value: 1 },
+  { id: "lg", label: "Large", value: 1.125 },
+  { id: "xl", label: "X-Large", value: 1.25 },
+];
 
 const THEME_KEY = "navee.theme";
 const FONT_KEY = "navee.fontScale";
@@ -26,14 +32,15 @@ export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
-export function getStoredFontScale(): number {
-  const n = parseInt(localStorage.getItem(FONT_KEY) ?? "", 10);
-  if (Number.isNaN(n)) return FONT_SCALE_DEFAULT;
-  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, n));
+export function getStoredFontScale(): FontScale {
+  const v = localStorage.getItem(FONT_KEY);
+  if (v === "sm" || v === "md" || v === "lg" || v === "xl") return v;
+  return FONT_SCALE_DEFAULT;
 }
 
-export function applyFontScale(pct: number): void {
-  document.documentElement.style.fontSize = `${pct}%`;
+export function applyFontScale(scale: FontScale): void {
+  const entry = FONT_SCALES.find((f) => f.id === scale);
+  if (entry) document.documentElement.style.setProperty("--font-scale", String(entry.value));
 }
 
 /**

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { api, type Compaction, type Message, type Skill, type User, type UserFact } from "../api/client";
 import { cn } from "../utils/cn";
-import { applyFontScale, applyTheme, getInitialTheme, getStoredFontScale, FONT_SCALE_MAX, FONT_SCALE_MIN, type Theme } from "../utils/appearance";
+import { applyFontScale, applyTheme, getInitialTheme, getStoredFontScale, FONT_SCALES, type FontScale, type Theme } from "../utils/appearance";
 
 type Section = "users" | "skills" | "appearance";
 type DetailTab = "management" | "compactions" | "facts" | "history";
@@ -265,7 +265,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 </button>
                 <span className="text-xs font-medium text-foreground">{selected.username}</span>
                 {selected.display_name && (
-                  <span className="text-[0.6875rem] text-muted-foreground">{selected.display_name}</span>
+                  <span className="text-3xs text-muted-foreground">{selected.display_name}</span>
                 )}
               </div>
               <div className="flex gap-1 px-4 pt-2 border-b border-border">
@@ -287,7 +287,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {error && (
-                  <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
+                  <div className="mx-4 mt-2 px-2 py-1 text-3xs text-destructive bg-destructive/10 rounded-md">
                     {error}
                   </div>
                 )}
@@ -340,7 +340,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {error && (
-                  <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
+                  <div className="mx-4 mt-2 px-2 py-1 text-3xs text-destructive bg-destructive/10 rounded-md">
                     {error}
                   </div>
                 )}
@@ -357,7 +357,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                           key={u.id}
                           className="flex items-center gap-2 px-4 py-2 border-b border-border"
                         >
-                          <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-[0.625rem] font-medium text-muted-foreground">
+                          <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-2xs font-medium text-muted-foreground">
                             {u.username.slice(0, 1).toUpperCase()}
                           </div>
                           <input
@@ -400,7 +400,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         >
                           <div className="flex-1">
                             <div className="text-xs font-medium text-foreground">{u.username}</div>
-                            <div className="text-[0.6875rem] text-muted-foreground">
+                            <div className="text-3xs text-muted-foreground">
                               Delete this user and all their data?
                             </div>
                           </div>
@@ -428,20 +428,20 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         className="flex items-center gap-2 px-4 py-2 border-b border-border hover:bg-muted cursor-pointer"
                         onClick={() => setSelectedId(u.id)}
                       >
-                        <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-[0.625rem] font-medium text-muted-foreground">
+                        <div className="w-6 h-6 rounded-full bg-muted grid place-items-center text-2xs font-medium text-muted-foreground">
                           {u.username.slice(0, 1).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-foreground truncate">
                             {u.username}
                             {isDefault && (
-                              <span className="ml-1.5 text-[0.625rem] font-normal text-muted-foreground">
+                              <span className="ml-1.5 text-2xs font-normal text-muted-foreground">
                                 default
                               </span>
                             )}
                           </div>
                           {u.display_name && (
-                            <div className="text-[0.6875rem] text-muted-foreground truncate">
+                            <div className="text-3xs text-muted-foreground truncate">
                               {u.display_name}
                             </div>
                           )}
@@ -508,7 +508,7 @@ function ManagementTab({
   ];
   return (
     <div className="p-4 space-y-2">
-      <p className="text-[0.6875rem] text-muted-foreground">
+      <p className="text-3xs text-muted-foreground">
         Clear all of this user&apos;s data in a category. This cannot be undone.
       </p>
       {rows.map((r) => (
@@ -518,13 +518,13 @@ function ManagementTab({
         >
           <div className="flex-1">
             <div className="text-xs font-medium text-foreground">{r.label}</div>
-            <div className="text-[0.6875rem] text-muted-foreground">
+            <div className="text-3xs text-muted-foreground">
               {r.count} {r.noun}
             </div>
           </div>
           {confirm === r.kind ? (
             <>
-              <span className="text-[0.6875rem] text-muted-foreground">
+              <span className="text-3xs text-muted-foreground">
                 Clear all {r.count} {r.noun}?
               </span>
               <button
@@ -600,12 +600,12 @@ function CompactionsTab({
               <div className="flex-1 min-w-0">
                 <p className={cn("text-xs text-foreground", !viewing && "truncate")}>{c.summary}</p>
                 {viewing ? (
-                  <div className="mt-1 text-[0.6875rem] text-muted-foreground">
+                  <div className="mt-1 text-3xs text-muted-foreground">
                     {c.messages_compacted} messages · {c.tokens_before ?? "?"}→
                     {c.tokens_after ?? "?"} tokens · session #{c.session_id} · {c.created_at}
                   </div>
                 ) : (
-                  <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{c.created_at}</div>
+                  <div className="mt-0.5 text-3xs text-muted-foreground">{c.created_at}</div>
                 )}
               </div>
               {viewing ? (
@@ -686,7 +686,7 @@ function FactsTab({
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className={cn("text-xs text-foreground", !viewing && "truncate")}>{f.fact}</p>
-                <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{f.created_at}</div>
+                <div className="mt-0.5 text-3xs text-muted-foreground">{f.created_at}</div>
               </div>
               {viewing ? (
                 <button
@@ -736,13 +736,13 @@ function HistoryTab({ items }: { items: Message[] }) {
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-[0.6875rem] font-medium",
+                "text-3xs font-medium",
                 m.role === "user" ? "text-indigo-600 dark:text-indigo-400" : "text-muted-foreground"
               )}
             >
               {m.role}
             </span>
-            <span className="text-[0.625rem] text-muted-foreground">{m.created_at}</span>
+            <span className="text-2xs text-muted-foreground">{m.created_at}</span>
           </div>
           <p className="text-xs text-foreground whitespace-pre-wrap break-words">{m.content}</p>
         </div>
@@ -833,7 +833,7 @@ function SkillsSection({
         {skills.length > 0 &&
           (confirmClearAll ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-[0.6875rem] text-muted-foreground">
+              <span className="text-3xs text-muted-foreground">
                 Delete all {skills.length} skills?
               </span>
               <button type="button" onClick={clearAll} disabled={busy} className={DANGER_BTN}>
@@ -860,7 +860,7 @@ function SkillsSection({
       </div>
       <div className="flex-1 overflow-y-auto">
         {error && (
-          <div className="mx-4 mt-2 px-2 py-1 text-[0.6875rem] text-destructive bg-destructive/10 rounded-md">
+          <div className="mx-4 mt-2 px-2 py-1 text-3xs text-destructive bg-destructive/10 rounded-md">
             {error}
           </div>
         )}
@@ -902,7 +902,7 @@ function SkillsSection({
                       <div className="flex-1">
                         <label
                           htmlFor="skill-name"
-                          className="block text-[0.6875rem] text-muted-foreground mb-0.5"
+                          className="block text-3xs text-muted-foreground mb-0.5"
                         >
                           Name
                         </label>
@@ -918,7 +918,7 @@ function SkillsSection({
                       <div className="flex-1">
                         <label
                           htmlFor="skill-description"
-                          className="block text-[0.6875rem] text-muted-foreground mb-0.5"
+                          className="block text-3xs text-muted-foreground mb-0.5"
                         >
                           Description
                         </label>
@@ -933,7 +933,7 @@ function SkillsSection({
                     </div>
                     <label
                       htmlFor="skill-content"
-                      className="block text-[0.6875rem] text-muted-foreground mb-0.5"
+                      className="block text-3xs text-muted-foreground mb-0.5"
                     >
                       Content
                     </label>
@@ -971,15 +971,15 @@ function SkillsSection({
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-foreground truncate">{s.name}</p>
-                      <p className="text-[0.6875rem] text-muted-foreground truncate">
+                      <p className="text-3xs text-muted-foreground truncate">
                         {s.description || "—"}
                       </p>
                       {viewing && (
-                        <pre className="mt-1.5 text-[0.6875rem] text-foreground whitespace-pre-wrap break-words bg-muted rounded-md p-2 max-h-40 overflow-y-auto">
+                        <pre className="mt-1.5 text-3xs text-foreground whitespace-pre-wrap break-words bg-muted rounded-md p-2 max-h-40 overflow-y-auto">
                           {s.content}
                         </pre>
                       )}
-                      <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{s.created_at}</div>
+                      <div className="mt-0.5 text-3xs text-muted-foreground">{s.created_at}</div>
                     </div>
                     {viewing ? (
                       <button
@@ -1031,7 +1031,7 @@ function SkillsSection({
 
 function AppearanceSection() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [fontScale, setFontScale] = useState<number>(getStoredFontScale);
+  const [fontScale, setFontScale] = useState<FontScale>(getStoredFontScale);
 
   const pickTheme = (t: Theme) => {
     setTheme(t);
@@ -1039,10 +1039,10 @@ function AppearanceSection() {
     localStorage.setItem("navee.theme", t);
   };
 
-  const pickFontScale = (n: number) => {
-    setFontScale(n);
-    applyFontScale(n);
-    localStorage.setItem("navee.fontScale", String(n));
+  const pickFontScale = (s: FontScale) => {
+    setFontScale(s);
+    applyFontScale(s);
+    localStorage.setItem("navee.fontScale", s);
   };
 
   return (
@@ -1052,22 +1052,23 @@ function AppearanceSection() {
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label htmlFor="font-scale" className="text-xs text-foreground">
-              Font size
-            </label>
-            <span className="text-xs text-muted-foreground">{fontScale}%</span>
+          <div className="text-xs text-foreground mb-2">Font size</div>
+          <div className="flex gap-1.5">
+            {FONT_SCALES.map((fs) => (
+              <button
+                key={fs.id}
+                type="button"
+                onClick={() => pickFontScale(fs.id)}
+                className={`flex-1 px-2 py-1.5 text-xs rounded-md border transition-colors ${
+                  fontScale === fs.id
+                    ? "bg-indigo-500 text-white border-indigo-500"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {fs.label}
+              </button>
+            ))}
           </div>
-          <input
-            id="font-scale"
-            type="range"
-            min={FONT_SCALE_MIN}
-            max={FONT_SCALE_MAX}
-            step={5}
-            value={fontScale}
-            onChange={(e) => pickFontScale(Number(e.target.value))}
-            className="w-full accent-indigo-500"
-          />
         </div>
         <div>
           <div className="text-xs text-foreground mb-2">Theme</div>

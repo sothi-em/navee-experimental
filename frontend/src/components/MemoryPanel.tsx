@@ -42,7 +42,7 @@ function truncate(s: string, n = 64): string {
 
 function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between text-[0.6875rem]">
+    <div className="flex items-center justify-between text-xs">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground tabular-nums">{value}</span>
     </div>
@@ -50,7 +50,7 @@ function StatRow({ label, value }: { label: string; value: string }) {
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="text-[0.6875rem] text-muted-foreground">{text}</div>;
+  return <div className="text-xs text-muted-foreground">{text}</div>;
 }
 
 function Skeleton() {
@@ -73,7 +73,7 @@ function BudgetSkeleton() {
       </div>
       <div className="space-y-1">
         {BUDGET_SEGMENTS.slice(0, 3).map((s) => (
-          <div key={s.key} className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground">
+          <div key={s.key} className="flex items-center gap-1.5 text-3xs text-muted-foreground">
             <span className={`w-1.5 h-1.5 rounded-full ${s.color}`} />
             {s.label}
           </div>
@@ -89,7 +89,7 @@ function BudgetBody({ b }: { b: ContextBudgetStats }) {
   const pct = (v: number) => (b.total > 0 ? (v / b.total) * 100 : 0);
   return (
     <>
-      <div className="text-[0.6875rem] font-medium text-foreground tabular-nums">
+      <div className="text-xs font-medium text-foreground tabular-nums">
         {used} / {b.total} tokens
       </div>
       <div className="h-1.5 rounded-full bg-muted flex overflow-hidden">
@@ -107,7 +107,7 @@ function BudgetBody({ b }: { b: ContextBudgetStats }) {
       </div>
       <div className="space-y-1">
         {BUDGET_SEGMENTS.map((s) => (
-          <div key={s.key} className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground">
+          <div key={s.key} className="flex items-center gap-1.5 text-3xs text-muted-foreground">
             <span className={`w-1.5 h-1.5 rounded-full ${s.color}`} />
             <span className="flex-1">{s.label}</span>
             <span className="tabular-nums">{b[s.key]}</span>
@@ -154,7 +154,7 @@ export function MemoryPanel({
 
   const body = (title: string) => {
     if (error !== null)
-      return <div className="text-[0.6875rem] text-datatype-red dark:text-red-400">Failed to load: {error}</div>;
+      return <div className="text-xs text-datatype-red dark:text-red-400">Failed to load: {error}</div>;
     if (stats === null) return title === "Context Budget" ? <BudgetSkeleton /> : <Skeleton />;
 
     switch (title) {
@@ -162,7 +162,7 @@ export function MemoryPanel({
         const e = stats.external_store;
         return (
           <>
-            <div className="flex items-center gap-1.5 text-[0.6875rem] text-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-foreground">
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
                   e.vector_recall ? "bg-datatype-emerald" : "bg-datatype-amber"
@@ -187,7 +187,7 @@ export function MemoryPanel({
               .reverse()
               .slice(0, 5)
               .map((s) => (
-                <div key={s.id} className="text-[0.6875rem]">
+                <div key={s.id} className="text-xs">
                   <div className="font-medium text-foreground truncate">{s.name}</div>
                   {s.description && (
                     <div className="text-muted-foreground truncate">{truncate(s.description)}</div>
@@ -205,7 +205,7 @@ export function MemoryPanel({
               .reverse()
               .slice(0, 5)
               .map((f) => (
-                <div key={f.id} className="text-[0.6875rem] text-foreground truncate">
+                <div key={f.id} className="text-xs text-foreground truncate">
                   {truncate(f.fact)}
                 </div>
               ))}
@@ -220,7 +220,7 @@ export function MemoryPanel({
               .reverse()
               .slice(0, 3)
               .map((c) => (
-                <div key={c.id} className="text-[0.6875rem]">
+                <div key={c.id} className="text-xs">
                   <div className="text-foreground">
                     {c.tokens_before !== null && c.tokens_after !== null
                       ? `${c.tokens_before} → ${c.tokens_after} tokens`
@@ -242,7 +242,7 @@ export function MemoryPanel({
     <section className="h-full flex flex-col bg-background">
       <div className="h-10 px-4 flex items-center gap-2 border-b border-border">
         <Activity className="w-4 h-4 text-indigo-500" />
-        <span className="text-xs font-medium text-foreground">Memory &amp; Metrics</span>
+        <span className="text-sm font-medium text-foreground">Memory &amp; Metrics</span>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-foreground bg-muted border border-border">
           <span className="w-1.5 h-1.5 rounded-full bg-datatype-emerald animate-pulse" />
@@ -258,7 +258,7 @@ export function MemoryPanel({
           >
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
               <card.icon className={`w-3.5 h-3.5 ${card.iconClass}`} />
-              <span className="text-xs font-medium text-foreground">{card.title}</span>
+              <span className="text-sm font-medium text-foreground">{card.title}</span>
             </div>
             <div className="px-3 py-3 space-y-2">{body(card.title)}</div>
           </div>

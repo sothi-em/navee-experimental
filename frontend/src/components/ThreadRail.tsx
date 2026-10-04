@@ -104,7 +104,7 @@ export function ThreadRail({
               ) : (
                 <>
                   <div className="truncate">{s.title || "New conversation"}</div>
-                  <div className="text-[0.625rem] text-muted-foreground">{formatWhen(s.created_at)}</div>
+                  <div className="text-2xs text-muted-foreground">{formatWhen(s.created_at)}</div>
                 </>
               )}
             </div>

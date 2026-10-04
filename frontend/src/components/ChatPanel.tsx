@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot, Loader2, Send, Wrench } from "lucide-react";
+import { Panda, Loader2, Send, Wrench } from "lucide-react";
 import { api, streamMessage, StreamError, type ToolEvent } from "../api/client";
 
 interface ChatMsg {
@@ -35,12 +35,12 @@ function ToolPill({ tool }: { tool: ToolState }) {
       {open && (
         <div className="mt-1.5 rounded-md border border-border bg-muted px-3 py-2">
           {args.length > 0 && (
-            <pre className="text-[0.625rem] leading-4 text-muted-foreground overflow-x-auto">
+            <pre className="text-2xs leading-4 text-muted-foreground overflow-x-auto">
               {JSON.stringify(tool.arguments)}
             </pre>
           )}
           {tool.result !== undefined && (
-            <pre className="mt-1 text-[0.6875rem] leading-4 text-foreground overflow-x-auto whitespace-pre-wrap">
+            <pre className="mt-1 text-3xs leading-4 text-foreground overflow-x-auto whitespace-pre-wrap">
               {tool.result}
             </pre>
           )}
@@ -70,7 +70,24 @@ export function ChatPanel({
       .then((rows) => {
         if (!cancelled) {
           setMessages(
-            rows.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content }))
+            rows.map((m) => {
+              let tools: ToolState[] | undefined;
+              if (m.metadata) {
+                try {
+                  const meta = JSON.parse(m.metadata);
+                  if (Array.isArray(meta.tool_events)) {
+                    tools = meta.tool_events.map((t: { name: string; arguments: Record<string, unknown>; result?: string }, i: number) => ({
+                      id: `loaded-${m.id}-${i}`,
+                      name: t.name,
+                      arguments: t.arguments,
+                      result: t.result,
+                      status: "ok" as const,
+                    }));
+                  }
+                } catch { /* ignore malformed metadata */ }
+              }
+              return { id: m.id, role: m.role as "user" | "assistant", content: m.content, tools };
+            })
           );
         }
       })
@@ -146,10 +163,10 @@ export function ChatPanel({
   return (
     <section className="h-full flex flex-col bg-background">
       <div className="h-10 px-4 flex items-center gap-2 border-b border-border">
-        <Bot className="w-4 h-4 text-indigo-500" />
-        <span className="text-xs font-medium text-foreground">Agent</span>
+        <Panda className="w-4 h-4 text-green-500" />
+        <span className="text-sm font-medium text-foreground">Agent</span>
         <span className="w-1.5 h-1.5 rounded-full bg-datatype-emerald" />
-        <span className="text-[0.625rem] text-muted-foreground">online</span>
+        <span className="text-2xs text-muted-foreground">online</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -161,14 +178,14 @@ export function ChatPanel({
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={m.id ?? `u-${i}`}>
-              <div className="text-[0.625rem] text-muted-foreground text-right">you</div>
+              <div className="text-2xs text-muted-foreground text-right">you</div>
               <div className="ml-auto w-fit max-w-[80%] px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm">
                 {m.content}
               </div>
             </div>
           ) : (
             <div key={m.id ?? `a-${i}`}>
-              <div className="text-[0.625rem] text-muted-foreground">agent</div>
+              <div className="text-2xs text-muted-foreground">agent</div>
               {m.tools?.map((t, j) => (
                 <ToolPill key={t.id || j} tool={t} />
               ))}

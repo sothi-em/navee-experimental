@@ -28,6 +28,25 @@
 }
 
 @theme {
+  --font-scale: 1;
+  --text-2xs: calc(var(--font-scale) * 0.625rem);
+  --text-3xs: calc(var(--font-scale) * 0.6875rem);
+  --text-xs: calc(var(--font-scale) * 0.75rem);
+  --text-sm: calc(var(--font-scale) * 0.875rem);
+  --text-base: calc(var(--font-scale) * 1rem);
+  --text-lg: calc(var(--font-scale) * 1.125rem);
+  --text-xl: calc(var(--font-scale) * 1.25rem);
+  --text-2xl: calc(var(--font-scale) * 1.5rem);
+  --text-3xl: calc(var(--font-scale) * 1.875rem);
+  --text-4xl: calc(var(--font-scale) * 2.25rem);
+  --text-5xl: calc(var(--font-scale) * 3rem);
+  --text-6xl: calc(var(--font-scale) * 3.75rem);
+  --text-7xl: calc(var(--font-scale) * 4.5rem);
+  --text-8xl: calc(var(--font-scale) * 6rem);
+  --text-9xl: calc(var(--font-scale) * 8rem);
+}
+
+@theme {
   --color-datatype-emerald: #10b981;
   --color-datatype-red: #aa2411;
   --color-datatype-sky: #198bf6;
