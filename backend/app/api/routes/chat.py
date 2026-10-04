@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.agent.agent_loop import run_agent_stream
 from app.agent.llm import llm
+from app.agent.memory import SkillStore
 from app.agent.tokenizer import truncate_to_tokens
 from app.core.config import settings
 from app.core.database import get_conn, get_user_facts_summary
@@ -39,6 +40,16 @@ def _user_facts_system(session_id: int) -> str | None:
         return None
     summary = truncate_to_tokens(summary, settings.user_facts_budget)
     return f"Known facts about the user:\n{summary}"
+
+
+def _skills_system() -> str | None:
+    """Budgeted system message listing all skill names + descriptions; None if none."""
+    skills = SkillStore().list_skills()
+    if not skills:
+        return None
+    lines = [f"- {s['name']}: {s.get('description', '')}" for s in skills]
+    text = "Available skills (use the get_skill tool to fetch full content):\n" + "\n".join(lines)
+    return truncate_to_tokens(text, settings.skill_budget)
 
 
 @router.post("/sessions", response_model=Session, status_code=201)
@@ -103,7 +114,15 @@ def send_message(session_id: int, payload: MessageIn) -> list[dict]:
         )
         if payload.role == "user":
             get_session_store().set_initial_title(session_id, payload.content)
-            reply = llm.complete(payload.content, system=_user_facts_system(session_id))
+            system_parts = []
+            skills_system = _skills_system()
+            if skills_system:
+                system_parts.append(skills_system)
+            facts_system = _user_facts_system(session_id)
+            if facts_system:
+                system_parts.append(facts_system)
+            system = "\n\n".join(system_parts) if system_parts else None
+            reply = llm.complete(payload.content, system=system)
             conn.execute(
                 "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
                 (session_id, "assistant", reply),
@@ -130,9 +149,12 @@ async def stream_message(session_id: int, payload: ChatStreamIn):
             (session_id,)
         ).fetchall()
     history = [{"role": r["role"], "content": r["content"]} for r in rows]
-    system = _user_facts_system(session_id)
-    if system:
-        history.insert(0, {"role": "system", "content": system})
+    facts_system = _user_facts_system(session_id)
+    skills_system = _skills_system()
+    if facts_system:
+        history.insert(0, {"role": "system", "content": facts_system})
+    if skills_system:
+        history.insert(0, {"role": "system", "content": skills_system})
     return EventSourceResponse(_stream_turn(session_id, history))
 
 

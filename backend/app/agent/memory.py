@@ -46,6 +46,13 @@ class SkillStore:
             doc = self.skills.get(doc_id=doc_id)
             return dict(doc, doc_id=doc.doc_id) if doc is not None else None
 
+    def get_skill_by_name(self, name: str) -> dict | None:
+        with db_lock():
+            for doc in self.skills:
+                if doc.get("name") == name:
+                    return dict(doc, doc_id=doc.doc_id)
+            return None
+
     def update_skill(
         self, doc_id: int, name: str, description: str, content: str
     ) -> bool:

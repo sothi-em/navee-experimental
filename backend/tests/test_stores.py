@@ -96,6 +96,15 @@ def test_skill_fields(stores) -> None:
     assert skill["created_at"]
 
 
+def test_get_skill_by_name(stores) -> None:
+    store = SkillStore()
+    store.add_skill("test-skill", "desc", "full content here")
+    skill = store.get_skill_by_name("test-skill")
+    assert skill is not None
+    assert skill["content"] == "full content here"
+    assert store.get_skill_by_name("nonexistent") is None
+
+
 def test_compactions_order_and_fields(stores) -> None:
     sid = get_session_store().create(1)["id"]
     with get_conn() as conn:

@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from app.agent.memory import SkillStore
+
 
 @dataclass(frozen=True)
 class Tool:
@@ -26,6 +28,13 @@ def _echo(text: str) -> str:
 
 def _get_current_time() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _get_skill(name: str) -> str:
+    skill = SkillStore().get_skill_by_name(name)
+    if skill is None:
+        return f"error: skill '{name}' not found"
+    return skill.get("content", "")
 
 
 TOOLS: list[Tool] = [
@@ -44,6 +53,18 @@ TOOLS: list[Tool] = [
         description="Get the current UTC time as an ISO 8601 string.",
         parameters={"type": "object", "properties": {}},
         fn=_get_current_time,
+    ),
+    Tool(
+        name="get_skill",
+        description="Fetch the full content of a skill by name.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The exact name of the skill to fetch"},
+            },
+            "required": ["name"],
+        },
+        fn=_get_skill,
     ),
 ]
 

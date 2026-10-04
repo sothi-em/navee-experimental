@@ -148,7 +148,7 @@ def test_stream_message_with_tool_round(client: TestClient, monkeypatch) -> None
                      if f.startswith("event: done") for l in f.split("\n") if l.startswith("data:"))
     message_id = json.loads(done_data)["message_id"]
     assert message_id is not None
-    assert [t["function"]["name"] for t in calls["tools_seen"]] == ["echo", "get_current_time"]
+    assert [t["function"]["name"] for t in calls["tools_seen"]] == ["echo", "get_current_time", "get_skill"]
 
     r = client.get(f"/api/chat/sessions/{session_id}/messages")
     msgs = r.json()
@@ -195,6 +195,132 @@ def test_stream_injects_user_facts_summary(client: TestClient, monkeypatch) -> N
     # The transcript still contains only the real turns.
     r = client.get(f"/api/chat/sessions/{session_id}/messages")
     assert [m["role"] for m in r.json()] == ["user", "assistant"]
+
+
+def test_stream_injects_skills_system(client: TestClient, monkeypatch) -> None:
+    from app.agent.memory import SkillStore
+
+    r = client.post("/api/users", json={"username": "frank"})
+    user_id = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id})
+    session_id = r.json()["id"]
+    SkillStore().add_skill("my_skill", "does things", "the complete skill body")
+
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def _chunk(content=None, finish=None):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content, tool_calls=None),
+            finish_reason=finish)])
+
+    async def fake_stream(self, messages, tools=None):
+        seen["first"] = messages[0]
+        yield _chunk(content="ok", finish="stop")
+
+    monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
+    with client.stream("POST", f"/api/chat/sessions/{session_id}/messages/stream",
+                       json={"content": "hi"}) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    assert seen["first"]["role"] == "system"
+    assert "my_skill" in seen["first"]["content"]
+    assert "does things" in seen["first"]["content"]
+    # Skill content is only fetched via the get_skill tool, never in the prompt.
+    assert "the complete skill body" not in seen["first"]["content"]
+
+
+def test_send_message_injects_skills_system(client: TestClient, monkeypatch) -> None:
+    from app.agent.memory import SkillStore
+
+    r = client.post("/api/users", json={"username": "grace"})
+    user_id = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id})
+    session_id = r.json()["id"]
+    SkillStore().add_skill("plain_skill", "plain desc", "plain content")
+
+    seen = {}
+
+    def fake_complete(self, content, system=None):
+        seen["system"] = system
+        return "ok"
+
+    monkeypatch.setattr("app.agent.llm.LLMClient.complete", fake_complete)
+    r = client.post(f"/api/chat/sessions/{session_id}/messages",
+                    json={"role": "user", "content": "hi"})
+    assert r.status_code == 200
+    assert seen["system"] is not None
+    assert "plain_skill" in seen["system"]
+    assert "plain desc" in seen["system"]
+
+
+def test_stream_get_skill_tool(client: TestClient, monkeypatch) -> None:
+    from app.agent.memory import SkillStore
+
+    r = client.post("/api/users", json={"username": "heidi"})
+    user_id = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id})
+    session_id = r.json()["id"]
+    SkillStore().add_skill("tool_skill", "tool desc", "tool content body")
+
+    from types import SimpleNamespace
+
+    def _chunk(content=None, tool_calls=None, finish=None):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(delta=SimpleNamespace(content=content, tool_calls=tool_calls),
+                                     finish_reason=finish)]
+        )
+
+    calls = {"n": 0}
+
+    async def fake_stream(self, messages, tools=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            yield _chunk(tool_calls=[SimpleNamespace(
+                index=0, id="call_skill",
+                function=SimpleNamespace(name="get_skill", arguments='{"name": "tool_skill"}'))],
+                finish="tool_calls")
+        else:
+            assert any(m["role"] == "tool" for m in messages)
+            yield _chunk(content="done", finish="stop")
+
+    monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
+    with client.stream("POST", f"/api/chat/sessions/{session_id}/messages/stream",
+                       json={"content": "fetch the skill"}) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text()).replace("\r\n", "\n")
+    frames = [f for f in body.split("\n\n") if f.strip()]
+    tool_frame = next(f for f in frames if f.startswith("event: tool\n"))
+    assert '"name": "get_skill"' in tool_frame
+    assert "tool content body" in tool_frame
+
+
+def test_stream_no_skills_no_system(client: TestClient, monkeypatch) -> None:
+    r = client.post("/api/users", json={"username": "ivan"})
+    user_id = r.json()["id"]
+    r = client.post("/api/chat/sessions", json={"user_id": user_id})
+    session_id = r.json()["id"]
+
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def _chunk(content=None, finish=None):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content, tool_calls=None),
+            finish_reason=finish)])
+
+    async def fake_stream(self, messages, tools=None):
+        seen["first"] = messages[0]
+        yield _chunk(content="ok", finish="stop")
+
+    monkeypatch.setattr("app.agent.llm.LLMClient.stream_chat", fake_stream)
+    with client.stream("POST", f"/api/chat/sessions/{session_id}/messages/stream",
+                       json={"content": "hi"}) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    assert seen["first"]["role"] == "user"
 
 
 def test_memory_stats(client: TestClient) -> None:
