@@ -12,11 +12,10 @@ persistent stores**, alongside a **full, durable copy of the transcript**
 There is no login or security — just simple users with normal attributes
 (id, username, display name).
 
-> Status: **scaffold.** The wiring, storage, and a minimal chat loop are in
-> place. The agent loop, streaming, tool execution, context shaping, and
-> recall strategies are the next phase. See
-> [`docs/chat-memory-architecture.md`](docs/chat-memory-architecture.md) for
-> the target design.
+> Status: **experimental.** A streaming agent loop with tool execution, a
+> skills store, per-user facts, optional vector recall, and transcript
+> compaction are in place. It is a sandbox for iterating on long-form chat
+> strategies, not a production system.
 
 ## Architecture (tiered state)
 
@@ -26,7 +25,7 @@ pushed into typed, owner-scoped, human-visible stores.
 | Tier | Store | Lifetime |
 |---|---|---|
 | Working context | in-window chat history | trimmed / compacted each turn |
-| Durable personal knowledge | learned facts (TinyDB) | persistent, recalled by retrieval |
+| Durable personal knowledge | learned facts (SQLite) | persistent, recalled by retrieval |
 | Procedural knowledge | skills (TinyDB) | persistent, agent-saved |
 | Semantic recall | flat-file ChromaDB index | persistent, optional |
 | Full transcript | SQLite | persistent, human-visible |
@@ -37,15 +36,15 @@ pushed into typed, owner-scoped, human-visible stores.
 backend/    FastAPI + uv (Python 3.13)
   server.py         FastAPI app factory + entrypoint
   app/
-    core/             config, SQLite store, pydantic models
-    agent/            llm, tokenizer, memory/recall, tools
-    api/routes/       health, users, chat
-  tests/              API smoke tests
+    core/             config, SQLite store, TinyDB, session store, models
+    agent/            llm, tokenizer, agent loop, memory/recall, tools
+    api/routes/       health, users, chat, memory, skills, user_data
+  tests/              API + store tests
 frontend/   React + Vite + TypeScript + Tailwind CSS
   src/
     api/client.ts     typed backend client
-    App.tsx           dashboard (users + chat)
-docs/       architecture & strategy notes
+    App.tsx           dashboard shell
+    components/       ChatPanel, ThreadRail, MemoryPanel, SettingsModal, TopBar
 ```
 
 ## Prerequisites
@@ -96,10 +95,14 @@ Backend settings come from environment variables or `backend/.env` (see
 | `LLM_API_KEY` | `not-set` | API key (often a dummy for local) |
 | `LLM_MODEL` | `local-model` | model name to request |
 | `TOKENIZER_NAME` | `gpt2` | HF tokenizer id or local path |
-| `DATABASE_PATH` | `data/navee.db` | SQLite file (users, transcript, compactions) |
-| `TINYDB_PATH` | `data/navee.json` | sessions + facts + skills store |
+| `DATABASE_PATH` | `data/navee.db` | SQLite file (users, transcript, compactions, user facts) |
+| `TINYDB_PATH` | `data/navee.json` | sessions + skills store |
 | `CHROMA_PATH` | `data/chroma` | flat-file vector index |
 | `CORS_ORIGINS` | `["http://localhost:5173"]` | allowed origins |
+| `CONVERSE_TOKEN_BUDGET` | `64000` | total per-turn context envelope (tokens) |
+| `COMPACTION_BUDGET` | `16384` | cap for the compaction summary |
+| `SKILL_BUDGET` | `8192` | cap for skill references |
+| `USER_FACTS_BUDGET` | `1024` | cap for the user-facts summary |
 
 ## Testing
 
@@ -110,8 +113,8 @@ uv run pytest
 
 ## Python libraries
 
-- `sqlite3` (stdlib) — users, transcript, compaction history
-- `tinydb` — sessions, learned facts + skills
+- `sqlite3` (stdlib) — users, transcript, compaction history, user facts
+- `tinydb` — sessions + skills
 - `chromadb` — flat-file (persistent) semantic recall index
 - `transformers` — tokenizer for token counting and chunking
 - `openai` — client for the locally hosted LLM
